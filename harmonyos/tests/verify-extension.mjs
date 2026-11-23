@@ -38,6 +38,7 @@ const old = 'aaaaaaaaaaaaaaaaaaaaaaaa';
 const searched = [];
 const opened = [];
 let signedIn = false;
+let searchHomeVisits = 0;
 
 function notesPage(keyword, id) {
   return `<!doctype html><meta charset="utf-8">
@@ -67,7 +68,10 @@ try {
   await context.route(`${origin}/**`, async route => {
     const url = new URL(route.request().url());
     const html = body => route.fulfill({ contentType: 'text/html; charset=utf-8', body });
-    if (url.pathname === '/explore') return html('<meta charset="utf-8"><p>小红书测试首页</p>');
+    if (url.pathname === '/explore') {
+      searchHomeVisits++;
+      return html('<meta charset="utf-8"><p>小红书测试首页</p>');
+    }
     if (url.pathname === '/fixture-confirm-login') {
       signedIn = true;
       return html('<meta charset="utf-8"><p>测试登录成功</p>');
@@ -113,6 +117,14 @@ try {
   await dashboard.locator('#terms').fill([...cases.keys()].join(' '));
   await dashboard.locator('summary').click();
   await dashboard.locator('#screens').fill('1');
+  const templateInput = dashboard.locator('#template');
+  await templateInput.setInputFiles({ name: '无效模板.md', mimeType: 'text/markdown', buffer: Buffer.from('# 无效的模板') });
+  await dashboard.locator('#template-status').filter({ hasText: '报告模板无效' }).waitFor();
+  await dashboard.locator('#start-job').click();
+  assert.match(await dashboard.locator('#status').innerText(), /报告模板无效/);
+  assert.equal(searchHomeVisits, 0, 'invalid template did not open a collection tab');
+  await dashboard.locator('#reset-template').click();
+
   await dashboard.locator('#start-job').click();
 
   await dashboard.locator('#prompt').waitFor({ state: 'visible', timeout: 20000 });
@@ -144,7 +156,37 @@ try {
     assert.equal(sheet.getCell('D2').hyperlink, `${origin}/explore/${id}?fixture=final&xsec_source=pc_search`);
   }
   assert.equal(workbook.getWorksheet('总表').actualRowCount, 3);
-  console.log('Verified unpacked extension, simulated sign-in, latest/date filtering, older-note exclusion, redirected links, and two-keyword Excel download.');
+
+  const schema = {
+    version: 1,
+    analysisFields: [{ key: 'issue', title: '风险要点', type: 'text', instruction: '根据证据归纳问题。' }],
+    summarySections: [{ key: 'risk', title: '主要风险', instruction: '汇总有样本依据的风险。' }],
+    sheets: [
+      { kind: 'overview', name: '核对明细', columns: ['url', 'title', 'issue', 'analysis_status'] },
+      { kind: 'summary', name: '风险总结' },
+      { kind: 'keyword', columns: ['title', 'date', 'url'] },
+    ],
+  };
+  const markdown = ['# 验证模板', '## 分析规则', '根据证据分析样本。', '```report-schema', JSON.stringify(schema), '```'].join('\n');
+  await templateInput.setInputFiles({ name: '风险规则.md', mimeType: 'text/markdown', buffer: Buffer.from(markdown) });
+  await dashboard.locator('#template-status').filter({ hasText: '已校验 · 风险规则.md' }).waitFor();
+  const customDownload = dashboard.waitForEvent('download', { timeout: 25000 });
+  await dashboard.locator('#start-job').click();
+  const customResult = await customDownload;
+  await dashboard.locator('#stop').waitFor({ state: 'hidden' });
+  const customWorkbook = new Workbook();
+  await customWorkbook.xlsx.readFile(await customResult.path());
+  assert.deepEqual(customWorkbook.worksheets.map(sheet => sheet.name), ['核对明细', '风险总结', ...cases.keys()]);
+  const customDetail = customWorkbook.getWorksheet('核对明细');
+  assert.deepEqual(customDetail.getRow(1).values.slice(1), ['原文地址', '标题', '风险要点', '分析状态']);
+  assert.equal(customDetail.getCell('A2').hyperlink, `${origin}/explore/${cases.get('宝山')}?fixture=final&xsec_source=pc_search`);
+  assert.equal(customDetail.getCell('B2').value, '宝山新笔记');
+  assert.ok(['', null].includes(customDetail.getCell('C2').value));
+  assert.equal(customDetail.getCell('D2').value, '未配置 API');
+  assert.equal(customWorkbook.getWorksheet('宝山').getCell('A2').value, '宝山新笔记');
+  assert.equal(customWorkbook.getWorksheet('风险总结').getCell('B2').value, '风险规则.md');
+  assert.deepEqual(errors, []);
+  console.log('Verified extension collection, invalid template preflight, and custom-sheet Excel export without an API key.');
 } finally {
   await context.close();
   console.log(`Disposable test directory: ${temporary}`);

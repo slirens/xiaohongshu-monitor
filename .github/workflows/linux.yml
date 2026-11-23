@@ -1,0 +1,93 @@
+name: Linux build, install, and verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish v1.3.0 after both Ubuntu environments pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Build DEB x64
+        run: |
+          bash linux/build-deb.sh "$RUNNER_TEMP/package" 1.3.0
+          dpkg-deb --info "$RUNNER_TEMP/package/"*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: ${{ runner.temp }}/package/*.deb
+          if-no-files-found: error
+
+  verify:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: ${{ runner.temp }}/package
+      - name: Install the downloaded package
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb xauth desktop-file-utils "$RUNNER_TEMP/package/"*.deb
+          google-chrome --version
+          desktop-file-validate /usr/share/applications/xiaohongshu-monitor.desktop
+          test "$(dpkg-query -W -f='${Version}' xiaohongshu-monitor)" = 1.3.0
+      - name: Run the installed desktop app and export Excel
+        run: |
+          fixture="$RUNNER_TEMP/notes.json"
+          printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
+          xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state"
+      - name: Exercise real Chrome against local search and login fixtures
+        run: xvfb-run -a /opt/xiaohongshu-monitor/runtime/node linux/verify-browser.cjs /opt/xiaohongshu-monitor
+      - name: Uninstall and verify clean removal
+        run: |
+          sudo apt-get remove -y xiaohongshu-monitor
+          test ! -e /usr/bin/xiaohongshu-monitor
+          test ! -e /usr/share/applications/xiaohongshu-monitor.desktop
+
+  publish:
+    if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: packages
+      - name: Publish verified package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd packages
+          installer=xiaohongshu-monitor-v1.3.0-linux-amd64.deb
+          sha256sum "$installer" > SHA256SUMS.txt
+          gh release create v1.3.0 "$installer" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "v1.3.0 · Linux DEB x64" \
+            --notes-file ../linux/RELEASE.md

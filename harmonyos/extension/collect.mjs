@@ -46,7 +46,8 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
     if (found?.login) return found;
     return found && isSearch(found.url) && (found.filter || found.hasCards || found.empty) ? found : null;
   }, 12000);
-  const eligible = presetsCovering(range.start);
+  const stopAtStart = !range.screens && range.sort === '最新';
+  const eligible = presetsCovering(range.start, new Date(), stopAtStart);
   if (!eligible.length) throw new Error('目标日期超出网页发布时间筛选可覆盖的范围。');
 
   progress(`正在搜索「${keyword}」`);
@@ -60,20 +61,20 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
   }
   if (!found || found.login || !isSearch(found.url)) throw new Error('未能进入目标搜索页，请检查登录和网页状态后重试。');
 
-  const choose = async expression => {
+  const choose = async (kind, expression) => {
     await browser.evaluate('openFilter');
-    return wait(() => browser.evaluate('clickOption', expression.source), 2500);
+    return wait(() => browser.evaluate(kind, expression.source), 2500);
   };
   let dateFilter = '';
   if (found.filter) {
-    const order = await choose(range.sort === '综合' ? /^综合$/ : /^最新$/);
+    const order = await choose('clickOption', range.sort === '综合' ? /^综合$/ : /^最新$/);
     if (order) for (const [, expression] of eligible) {
-      dateFilter = await choose(expression);
+      dateFilter = await choose('clickTime', expression);
       if (dateFilter) break;
     }
   }
   if (!dateFilter) {
-    const choices = eligible.map(([days]) => days === 1 ? '一天内' : days === 7 ? '一周内' : '半年内');
+    const choices = eligible.map(([days]) => days === Infinity ? '不限' : days === 1 ? '一天内' : days === 7 ? '一周内' : '半年内');
     const selected = await ask(`请在采集标签页应用「${range.sort}」排序及覆盖目标日期的发布时间，再返回并选择网页上的同名选项。`, choices);
     checkAbort(signal);
     if (!choices.includes(selected) || !isSearch(await browser.url())) throw new Error('网页时间筛选未确认。');
@@ -89,15 +90,22 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
     if (!isSearch(await browser.url())) throw new Error('采集标签页已离开搜索结果。');
     const view = await browser.evaluate('cards');
     if (!view) throw new Error('未能读取搜索结果卡片。');
+    let olderDate;
     for (const card of view.entries) {
       const note = noteAddress(card.href);
       if (!note) continue;
       const old = cards.get(note.id);
-      const date = card.labels.map(label => parseDisplayedDate(label)).find(Boolean) || old?.date;
+      const visibleDate = card.labels.map(label => parseDisplayedDate(label)).find(Boolean);
+      if (stopAtStart && visibleDate && visibleDate < range.start) olderDate ??= visibleDate;
+      const date = visibleDate || old?.date;
       const href = !old || (!old.token && note.url.searchParams.has('xsec_token')) ? note.url.href : old.href;
       cards.set(note.id, { date, href, token: new URL(href).searchParams.has('xsec_token') });
     }
     progress(`「${keyword}」第 ${screen} 屏 · ${cards.size} 条候选`);
+    if (olderDate) {
+      progress(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`);
+      break;
+    }
     if (screen === range.screens) break;
     const position = JSON.stringify([view.top, view.height, view.entries.map(card => card.href)]);
     unchanged = position === previous ? unchanged + 1 : 0;

@@ -16,7 +16,7 @@ test -f "$node_license"
 test ! -e "$app" || { printf '%s\n' "Choose an empty output directory." >&2; exit 1; }
 mkdir -p "$runtime" "$app/Contents/MacOS"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
-cp "$root/monitor.mjs" "$root/safari.mjs" "$root/cover.png" "$root/报告生成模板.md" "$root/LICENSE" "$resources/"
+cp "$root/monitor.mjs" "$root/safari.mjs" "$root/report-template.mjs" "$root/cover.png" "$root/报告生成模板.md" "$root/LICENSE" "$resources/"
 cp "$root/package.json" "$root/package-lock.json" "$runtime/"
 cp "$node_license" "$runtime/LICENSE.node"
 cp "$node" "$runtime/node"

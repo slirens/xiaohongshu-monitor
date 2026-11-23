@@ -12,6 +12,7 @@ await cp(join(root, 'extension'), output, { recursive: true });
 await cp(join(root, '..', 'LICENSE'), join(output, 'LICENSE'));
 await cp(join(root, '..', 'cover.png'), join(output, 'cover.png'));
 await cp(join(root, '..', '报告生成模板.md'), join(output, '报告生成模板.md'));
+await cp(join(root, '..', 'report-template.mjs'), join(output, 'report-template.mjs'));
 await cp(join(root, 'README.md'), join(output, 'README.md'));
 await writeFile(join(output, 'page.js'), pageRead.toString() + '\n');
 const presets = timePresets.map(([days, expression]) => `[${days}, ${expression}]`).join(', ');

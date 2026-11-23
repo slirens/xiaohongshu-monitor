@@ -263,7 +263,7 @@ internal sealed partial class Desktop : Form
         templates.SelectedIndexChanged += delegate {
             reportTemplate = templates.SelectedIndex > 0 ? Path.Combine(library, templates.Text + ".md") : "";
         };
-        tooltip.SetToolTip(templates, "选择内置模板或已导入的 Markdown 模板。本次任务只使用选中的模板。");
+        tooltip.SetToolTip(templates, "选择内置规则或已导入的 Markdown 模板。开始监控前校验分析规则、工作表与列。");
         try {
             if (Directory.Exists(library)) {
                 foreach (string path in Directory.GetFiles(library, "*.md").OrderBy(Path.GetFileNameWithoutExtension))
@@ -578,13 +578,16 @@ internal sealed partial class Desktop : Form
             ok.SetBounds(380, 115, 106, 34);
             ok.DialogResult = DialogResult.OK;
             if (needsText) {
-                var presets = new ComboBox { Left = 22, Top = 78, Width = 465, DropDownStyle = ComboBoxStyle.DropDownList };
-                presets.Items.AddRange(new object[] {"一天内", "一周内", "半年内"});
+                caption.Height = 68;
+                var presets = new ComboBox { Left = 22, Top = 90, Width = 465, DropDownStyle = ComboBoxStyle.DropDownList };
+                if (message.Contains("此日期可使用不限")) presets.Items.Add("不限");
+                else presets.Items.AddRange(new object[] {"一天内", "一周内", "半年内"});
+                ok.Top = 127;
                 ok.Text = "已应用";
                 ok.Enabled = false;
                 presets.SelectedIndexChanged += delegate { ok.Enabled = presets.SelectedIndex >= 0; };
                 var endTask = MakeButton("结束任务", false);
-                endTask.SetBounds(260, 115, 106, 34);
+                endTask.SetBounds(260, 127, 106, 34);
                 endTask.DialogResult = DialogResult.Cancel;
                 dialog.CancelButton = endTask;
                 dialog.Controls.Add(presets);

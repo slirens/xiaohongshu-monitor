@@ -43,9 +43,19 @@ To build from source, have Microsoft Edge or Google Chrome available and use Nod
 
 Sign in when the app opens its browser window. Separate keywords with spaces. For AI analysis, select a provider in More Settings and enter its API key. Enabling AI analysis sends note excerpts and the data needed for the report summary to the selected provider.
 
+With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
+
 ## Templates and reports
 
-Start with `报告生成模板.md`. Keep the section headings `总结` (Summary), `总表` (Overview), and `日期` (By date). Reports and browser sessions are stored locally.
+Copy [the sample Markdown template](报告生成模板.md), write your analysis criteria under `分析规则`, and edit the JSON in the `report-schema` block.
+
+- `analysisFields` defines each note's output keys, column headings, and instructions. It supports text, boolean, and enum fields.
+- `summarySections` defines summary headings, order, and instructions.
+- `sheets` defines worksheet order, names, and columns. Available kinds are `summary`, `overview`, `date`, and `keyword`. Built-in column keys are `keyword`, `date`, `title`, `body`, `url`, `analysis_status`, and `date_label`. Add analysis columns using their declared field keys.
+
+The app builds the workbook from this layout. If an AI result fails field validation, the report marks that analysis incomplete and retains the collected notes. The same layout works with AI disabled. Older templates with the `总结`, `总表`, and `日期` headings use the default layout.
+
+Desktop reports are written to the local `reports` folder. The browser extension downloads the workbook directly.
 
 ## License
 

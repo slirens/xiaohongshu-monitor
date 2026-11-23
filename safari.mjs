@@ -89,8 +89,8 @@ export function pageRead(kind, value, allowedOrigins) {
   if (!allowedOrigins.includes(location.origin)) return JSON.stringify(null);
   const visible = element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
   const caption = element => (element.innerText ?? element.textContent ?? '').trim();
-  const matching = (scope, expression) => Array.from(scope.querySelectorAll('button,[role=button],span,div,h1,h2,h3,h4,label,p'))
-    .filter(element => visible(element) && expression.test(caption(element)))
+  const matching = (scope, expression, include = () => true) => Array.from(scope.querySelectorAll('button,[role=button],span,div,h1,h2,h3,h4,label,p'))
+    .filter(element => include(element) && visible(element) && expression.test(caption(element)))
     .sort((a, b) => a.childElementCount - b.childElementCount)[0];
   if (kind === 'state') return JSON.stringify({
     url: location.href,
@@ -108,13 +108,17 @@ export function pageRead(kind, value, allowedOrigins) {
     if (!matching(document, /^发布时间$/)) option.click();
     return JSON.stringify(true);
   }
-  if (kind === 'clickOption') {
+  if (kind === 'clickOption' || kind === 'clickTime') {
     const heading = matching(document, /^发布时间$/);
     const sort = matching(document, /^排序依据$/);
     if (!heading || !sort) return JSON.stringify('');
     let panel = heading.parentElement;
     while (panel && !panel.contains(sort)) panel = panel.parentElement;
-    const option = panel && matching(panel, new RegExp(value));
+    const nextHeading = panel && matching(panel, /^(?:搜索范围|位置距离)$/, element =>
+      Boolean(heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const option = panel && matching(panel, new RegExp(value), element => kind !== 'clickTime' ||
+      Boolean(heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+      (!nextHeading || Boolean(element.compareDocumentPosition(nextHeading) & Node.DOCUMENT_POSITION_FOLLOWING)));
     if (!option) return JSON.stringify('');
     const label = caption(option);
     option.click();
@@ -213,24 +217,26 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     }
     if (!state || state.login || !isSearch(state.url)) throw new Error('Safari 未进入指定关键词的搜索结果页，请检查登录、验证或网络。');
 
-    const eligible = helpers.presetsCovering(range.start);
+    const toBottom = range.screens === 'bottom';
+    const stopAtStart = toBottom && range.sort === '最新';
+    const eligible = helpers.presetsCovering(range.start, new Date(), stopAtStart);
     if (!eligible.length) throw new Error('目标开始日期超出网页「半年内」可覆盖的范围。');
-    const choose = async expression => {
+    const choose = async (kind, expression) => {
       await read('openFilter');
-      return wait(() => read('clickOption', expression.source), 2500);
+      return wait(() => read(kind, expression.source), 2500);
     };
     let pageFilter;
     if (state.filter) {
-      const order = await choose(range.sort === '综合' ? /^综合$/ : /^最新$/);
+      const order = await choose('clickOption', range.sort === '综合' ? /^综合$/ : /^最新$/);
       if (order) for (const [, expression] of eligible) {
-        pageFilter = await choose(expression);
+        pageFilter = await choose('clickTime', expression);
         if (pageFilter) break;
       }
     }
     if (!pageFilter) {
       await setMode('foreground');
       while (!pageFilter) {
-        const choice = await ask(`先在 Safari 应用「${range.sort}」及覆盖 ${range.start} 至 ${range.end} 的发布时间。应用后选择同名时间选项；无合适选项请结束任务：`);
+        const choice = await ask(`先在 Safari 应用「${range.sort}」及覆盖 ${range.start} 至 ${range.end} 的发布时间。应用后选择同名时间选项${eligible[0][0] === Infinity ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`);
         if (!choice) throw new Error('尚未应用网页发布时间筛选。');
         if (eligible.some(([, expression]) => expression.test(choice))) pageFilter = `手动确认 · ${choice}`;
         else console.log(`「${choice}」可能漏掉目标日期开头的笔记，请选择更宽的时间范围。`);
@@ -239,17 +245,19 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     console.log(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。`);
     await pause(1200);
     const cards = new Map();
-    const toBottom = range.screens === 'bottom';
     let prior = '', stable = 0;
     for (let screen = 1; toBottom || screen <= range.screens; screen++) {
       signal?.throwIfAborted();
       if (!isSearch(await browser.url())) throw new Error('Safari 已离开目标关键词的搜索结果页。');
       const view = await read('cards');
+      let olderDate;
       for (const card of view?.entries ?? []) {
         const address = sameNote(card.href, origins);
         if (!address) continue;
         const previous = cards.get(address.id);
-        const date = card.labels.map(label => helpers.parseDisplayedDate(label)).find(Boolean) || previous?.date;
+        const visibleDate = card.labels.map(label => helpers.parseDisplayedDate(label)).find(Boolean);
+        if (stopAtStart && visibleDate && visibleDate < range.start) olderDate ??= visibleDate;
+        const date = visibleDate || previous?.date;
         if (!previous || address.url.searchParams.has('xsec_token')) {
           cards.set(address.id, { href: address.url.href, date });
         } else if (!previous.date && date) {
@@ -257,6 +265,10 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
         }
       }
       console.log(`扫描「${keyword}」 · 第 ${screen}${toBottom ? '' : `/${range.screens}`} 屏 · 候选 ${cards.size} 条`);
+      if (olderDate) {
+        console.log(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`);
+        break;
+      }
       if (!toBottom && screen === range.screens) break;
       const signature = JSON.stringify([view?.top, view?.height, view?.entries.map(card => card.href)]);
       stable = signature === prior ? stable + 1 : 0;

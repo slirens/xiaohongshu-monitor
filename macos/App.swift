@@ -24,6 +24,7 @@ private struct Prompt: Identifiable {
     let id = UUID()
     let text: String
     var chooseTime: Bool { text.contains("同名时间选项") }
+    var timeOptions: [String] { text.contains("此日期可使用不限") ? ["不限"] : ["一天内", "一周内", "半年内"] }
 }
 
 @MainActor
@@ -186,7 +187,7 @@ private struct MonitorView: View {
                         }
                         GridRow {
                             SecureField("API 密钥（可选）", text: $key)
-                            Button(template.isEmpty ? "选择 Markdown 模板…" : URL(fileURLWithPath: template).lastPathComponent) { chooseTemplate() }
+                            Button(template.isEmpty ? "选择 Markdown 报告规则…" : URL(fileURLWithPath: template).lastPathComponent) { chooseTemplate() }
                         }
                         if provider == "Qwen" {
                             GridRow { TextField("百炼兼容接口地址（可选）", text: $endpoint).gridCellColumns(2) }
@@ -230,7 +231,7 @@ private struct MonitorView: View {
                 if prompt.chooseTime {
                     Picker("已应用的发布时间", selection: $chosenTime) {
                         Text("请选择").tag("")
-                        ForEach(["一天内", "一周内", "半年内"], id: \.self) { Text($0) }
+                        ForEach(prompt.timeOptions, id: \.self) { Text($0) }
                     }
                 }
                 HStack {

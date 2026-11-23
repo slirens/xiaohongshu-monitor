@@ -1,8 +1,9 @@
-import { AI_PROVIDERS, summarizeKeyword } from './ai.mjs';
+import { AI_PROVIDERS, analyzeNote, summarizeKeyword } from './ai.mjs';
 import { openBrowser } from './browser.mjs';
 import { checkAbort } from './cancel.mjs';
 import { collectKeyword } from './collect.mjs';
 import { chinaDate, validDate } from './dates.mjs';
+import { makeReportSheets, parseReportTemplate } from './report-template.mjs';
 import { buildWorkbook } from './workbook.mjs';
 
 const $ = id => document.getElementById(id);
@@ -17,7 +18,7 @@ $('provider').addEventListener('change', () => {
   $('key').value = '';
   $('model').value = '';
   $('model').placeholder = config?.model || '使用服务商默认模型';
-  for (const name of ['key', 'model', 'template']) $(name).disabled = !config;
+  for (const name of ['key', 'model']) $(name).disabled = !config;
   $('ai-hint').hidden = !config;
 });
 
@@ -26,6 +27,40 @@ let browser;
 let pending;
 let saved;
 let reportName;
+const builtInTemplate = parseReportTemplate();
+let selectedTemplate = { value: builtInTemplate };
+
+async function readTemplate() {
+  const file = $('template').files[0];
+  $('reset-template').hidden = !file;
+  if (!file) {
+    selectedTemplate = { value: builtInTemplate };
+    $('template-status').textContent = '当前使用内置模板';
+    $('start-job').disabled = Boolean(controller);
+    return;
+  }
+  const selection = {};
+  selectedTemplate = selection;
+  $('start-job').disabled = true;
+  $('template-status').textContent = '正在校验模板…';
+  try {
+    if (!/\.md$/i.test(file.name) || file.size > 48000) {
+      throw new Error('请选择不超过 48 KB 的 Markdown 模板。');
+    }
+    selection.value = parseReportTemplate(await file.text(), file.name);
+  } catch (error) {
+    selection.error = error.message;
+  }
+  if (selectedTemplate !== selection) return;
+  $('template-status').textContent = selection.error || `已校验 · ${selection.value.name}`;
+  $('start-job').disabled = Boolean(controller);
+}
+
+$('template').addEventListener('change', readTemplate);
+$('reset-template').addEventListener('click', () => {
+  $('template').value = '';
+  void readTemplate();
+});
 
 function message(text) {
   $('status').textContent = text;
@@ -102,33 +137,34 @@ $('job').addEventListener('submit', async event => {
     message('请输入关键词及有效的起止日期。');
     return;
   }
-  const config = AI_PROVIDERS.find(item => item.name === $('provider').value);
-  const key = $('key').value.trim();
-  const model = $('model').value.trim();
-  const file = $('template').files[0];
-  if (config && !key) { message('请输入所选服务商的 API 密钥。'); return; }
-  if (config && file && (!/\.md$/i.test(file.name) || file.size > 48000)) {
-    message('请选择不超过 48 KB 的 Markdown 模板。');
+  const template = selectedTemplate.value;
+  if (!template) {
+    message(selectedTemplate.error || '正在校验报告模板。');
     return;
   }
+  const summarize = template.sheets.some(sheet => sheet.kind === 'summary');
+  const config = template.fields.length || summarize ? AI_PROVIDERS.find(item => item.name === $('provider').value) : undefined;
+  const key = $('key').value.trim();
+  const model = $('model').value.trim();
+  if (config && !key) { message('请输入所选服务商的 API 密钥。'); return; }
   controller = new AbortController();
   const { signal } = controller;
-  let template = '';
+  const ai = { provider: config?.name, key, model, template, signal };
   const reports = [];
   let failures = 0;
+  let analysisIncomplete = false;
+  let apiBlocked = '';
   try {
     $('start-job').disabled = true;
+    $('template').disabled = true;
+    $('reset-template').disabled = true;
     $('stop').hidden = false;
     $('history').replaceChildren();
     $('progress').max = terms.length;
     $('progress').value = 0;
     $('download').hidden = true;
     saved = null;
-    if (config) {
-      await permissionFor(config.origin);
-      template = file ? await file.text() : '';
-      if (template.length > 12000) throw new Error('Markdown 模板不能超过 12,000 个字符。');
-    }
+    if (config) await permissionFor(config.origin);
     checkAbort(signal);
     message('正在打开采集标签页…');
     browser = await openBrowser('https://www.xiaohongshu.com/explore');
@@ -138,13 +174,40 @@ $('job').addEventListener('submit', async event => {
       checkAbort(signal);
       try {
         const report = await collectKeyword(browser, keyword, range, ask, message, signal);
-        if (config && report.notes.length) {
-          message(`正在分析「${keyword}」…`);
+        report.info = { 开始日期: range.start, 结束日期: range.end };
+        let incomplete = 0;
+        if (template.fields.length) for (const [index, note] of report.notes.entries()) {
+          checkAbort(signal);
+          if (!config) { note.error = '未配置 API'; continue; }
+          if (apiBlocked) { note.error = apiBlocked; incomplete++; continue; }
+          message(`正在分析「${keyword}」${index + 1}/${report.notes.length}…`);
           try {
-            report.summary = await summarizeKeyword({ provider: config.name, key, model, keyword, notes: report.notes, template, signal });
+            note.analysis = await analyzeNote({ ...ai, keyword, note });
           } catch (error) {
             checkAbort(signal);
-            record(`「${keyword}」AI 分析失败 · ${error.message}`);
+            note.error = error.message;
+            if (/HTTP (401|403|404|429)\b/.test(error.message)) apiBlocked = error.message;
+            incomplete++;
+          }
+        }
+        if (incomplete) {
+          analysisIncomplete = true;
+          record(`「${keyword}」${incomplete} 条笔记的 AI 分析未完成。`);
+        }
+        if (summarize) {
+          if (!config) report.summaryStatus = '未配置 API，已导出样本与统计。';
+          else if (!report.notes.length) report.summaryStatus = '没有可用于总结的样本。';
+          else if (apiBlocked) report.summaryStatus = apiBlocked;
+          else {
+            message(`正在总结「${keyword}」…`);
+            try {
+              report.summary = await summarizeKeyword({ ...ai, keyword, notes: report.notes, range });
+            } catch (error) {
+              checkAbort(signal);
+              analysisIncomplete = true;
+              report.summaryStatus = error.message;
+              record(`「${keyword}」AI 总结未完成 · ${error.message}`);
+            }
           }
         }
         reports.push(report);
@@ -152,15 +215,19 @@ $('job').addEventListener('submit', async event => {
       } catch (error) {
         checkAbort(signal);
         failures++;
+        reports.push({ keyword, failed: true, notes: [] });
         record(`${index + 1}/${terms.length} · 「${keyword}」失败 · ${error.message}`);
       }
       $('progress').value = index + 1;
     }
-    if (!reports.length) throw new Error('本次没有完成的关键词，请查看下方进度。');
-    saved = buildWorkbook(reports);
+    if (failures === terms.length) throw new Error('本次没有完成的关键词，请查看下方进度。');
+    // Legacy browser reports always include a keyword sheet, including for one keyword.
+    const layout = makeReportSheets(template, reports, { includeSingleKeyword: true });
+    saved = buildWorkbook(reports, layout);
     reportName = `舆情_${range.start}_${range.end}.xlsx`;
     $('download').hidden = false;
-    message(failures ? '已生成 Excel · 部分关键词未完成' : '已生成 Excel');
+    message(failures ? '已生成 Excel · 部分关键词未完成' :
+      analysisIncomplete ? '已生成 Excel · 部分 AI 分析未完成' : '已生成 Excel');
     download();
   } catch (error) {
     message(signal.aborted ? '任务已停止' : error.message);
@@ -170,6 +237,8 @@ $('job').addEventListener('submit', async event => {
     pending = undefined;
     controller = undefined;
     $('key').value = '';
+    $('template').disabled = false;
+    $('reset-template').disabled = false;
     $('prompt').hidden = true;
     $('show-browser').hidden = true;
     $('stop').hidden = true;

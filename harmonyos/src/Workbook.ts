@@ -54,6 +54,13 @@ class Sheet {
   }
 }
 
+interface SheetLayout {
+  name: string;
+  headings: string[];
+  rows: (string | number)[][];
+  linkColumn: number;
+}
+
 function limitText(value: string, max: number): string {
   if (value.length <= max) {
     return value;
@@ -208,7 +215,8 @@ function appendSheet(entries: ZipEntry[], sheet: Sheet, number: number): void {
     }
   }
   const widths = sheet.headings.map((heading: string, index: number): string => {
-    const width = heading === '正文' || heading === '摘要' ? 65 : heading === '标题' ? 32 : heading === '原文链接' ? 60 : 17;
+    const width = index === sheet.linkColumn ? 60 :
+      ['正文', '摘要', '值'].includes(heading) ? 65 : heading === '标题' ? 32 : 17;
     return '<col min="' + (index + 1) + '" max="' + (index + 1) + '" width="' + width + '" customWidth="1"/>';
   });
   const hyperlinks = references.length > 0 ? '<hyperlinks>' + references.join('') + '</hyperlinks>' : '';
@@ -323,8 +331,13 @@ function zip(entries: ZipEntry[]): Uint8Array {
   return bytes;
 }
 
-export function buildWorkbook(reports: KeywordReport[]): Uint8Array {
-  const sheets = reportSheets(reports);
+export function buildWorkbook(reports: KeywordReport[], layout?: SheetLayout[]): Uint8Array {
+  const sheets = layout
+    ? layout.map(sheet => new Sheet(sheet.name, sheet.headings, sheet.rows.map(cells => {
+      const address = cells[sheet.linkColumn];
+      return new Row(cells, typeof address === 'string' ? noteLink(address) : '');
+    }), sheet.linkColumn))
+    : reportSheets(reports);
   const entries: ZipEntry[] = [];
   const sheetList: string[] = [];
   const rels: string[] = [];
