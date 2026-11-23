@@ -64,20 +64,7 @@ jobs:
             }
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
-      - name: Exercise Safari with a local fixture
-        run: |
-          defaults write com.apple.Safari IncludeDevelopMenu -bool true
-          defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
-          open -a /Applications/Safari.app 'about:blank'
-          sleep 3
-          /usr/bin/osascript <<'APPLESCRIPT'
-          with timeout of 12 seconds
-            tell application "Safari" to get count of windows
-          end timeout
-          APPLESCRIPT
-          app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
-          "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
-      - name: Archive verified app
+      - name: Archive the test build
         env:
           ARCH: ${{ matrix.arch }}
         run: |
@@ -88,6 +75,22 @@ jobs:
           name: macos-${{ matrix.arch }}
           path: ${{ runner.temp }}/xiaohongshu-monitor-v1.1.0-macos-${{ matrix.arch }}.zip
           if-no-files-found: error
+      - name: Exercise Safari with a local fixture
+        run: |
+          uid="$(id -u)"
+          /bin/launchctl print "gui/$uid" >/dev/null
+          gui=(/bin/launchctl asuser "$uid")
+          "${gui[@]}" /usr/bin/defaults write com.apple.Safari IncludeDevelopMenu -bool true
+          "${gui[@]}" /usr/bin/defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
+          "${gui[@]}" /usr/bin/open -a /Applications/Safari.app 'about:blank'
+          sleep 3
+          "${gui[@]}" /usr/bin/osascript <<'APPLESCRIPT'
+          with timeout of 12 seconds
+            tell application "Safari" to get count of windows
+          end timeout
+          APPLESCRIPT
+          app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
+          "${gui[@]}" "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
 
   publish:
     if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
