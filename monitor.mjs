@@ -24,7 +24,7 @@ function reportTemplateRuntime() {
     const source = !packagedWorker && existsSync(sibling) ? sibling : runtime;
     if (!existsSync(source)) throw new Error(process.platform === 'linux'
       ? '缺少报告模板规则组件，请重新安装软件包。'
-      : '缺少报告模板规则组件，请完整解压程序 ZIP 后重试。');
+      : '缺少报告模板规则组件，请重新安装程序或完整解压发行包。');
     reportTemplateModule = import(source.href);
   }
   return reportTemplateModule;
@@ -767,7 +767,7 @@ async function runBatch(request, ask) {
     require('exceljs');
     if (!request.source && process.platform !== 'darwin') require('playwright');
   } catch (error) {
-    const recovery = process.platform === 'linux' ? '请重新安装软件包' : '请完整解压 ZIP 后运行，保留同级 runtime 文件夹';
+    const recovery = process.platform === 'linux' ? '请重新安装软件包' : '请重新安装程序或完整解压发行包';
     throw new Error(`运行组件无法加载，${recovery}（${error.code ?? '加载错误'}）。`);
   }
   const terms = request.keyword.trim().split(/\s+/u).filter(Boolean);
@@ -894,7 +894,7 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
 }
 
 export { datePattern, timePresets, validDate, selectNotes, exportReport, analyse, parseDisplayedDate, presetsCovering, applySearchFilters, selectBrowser, aiConfig, requestAi };
-if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main ?? (process.argv[1] === fileURLToPath(import.meta.url))) {
   main().catch(error => {
     console.error(`运行失败：${error.message}`);
     process.exitCode = 1;

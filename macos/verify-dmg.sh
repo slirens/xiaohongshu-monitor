@@ -36,6 +36,7 @@ test "$(lipo -archs "$runtime/node")" = "$arch"
 fixture="$stage/notes.json"
 printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
 "$binary" --verify "$fixture" "$stage/verify"
+test -d "$stage/verify/reports" || { printf '%s\n' 'The app verification worker produced no report directory.' >&2; exit 1; }
 "$runtime/node" - "$runtime" "$stage/verify/reports" <<'JS'
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

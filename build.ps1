@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $source = $PSScriptRoot
-$nodePath = (Get-Command $Node -CommandType Application -ErrorAction Stop).Source
+$nodePath = (Get-Command $Node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $expectedNodeArchitecture = if ($Architecture -eq "x86") { "ia32" } else { "x64" }
 $nodeArchitecture = & $nodePath -p "process.arch"
 if ($LASTEXITCODE -ne 0 -or $nodeArchitecture -ne $expectedNodeArchitecture) {

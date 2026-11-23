@@ -15,9 +15,10 @@ $repo = Split-Path -LiteralPath $PSScriptRoot
 if (!$OutputDirectory) { $OutputDirectory = Join-Path $repo 'dist/windows-setup' }
 $output = (New-Item -ItemType Directory -Path $OutputDirectory -Force).FullName
 if (!$InnoCompiler) {
-    $InnoCompiler = (Get-Command ISCC.exe -CommandType Application -ErrorAction SilentlyContinue).Source
+    $InnoCompiler = (Get-Command ISCC.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
     if (!$InnoCompiler) {
-        $InnoCompiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+        $programFiles = if (${env:ProgramFiles(x86)}) { ${env:ProgramFiles(x86)} } else { $env:ProgramFiles }
+        $InnoCompiler = Join-Path $programFiles 'Inno Setup 6/ISCC.exe'
     }
 }
 if (!(Test-Path -LiteralPath $InnoCompiler -PathType Leaf)) {
