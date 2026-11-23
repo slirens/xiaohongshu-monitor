@@ -1,12 +1,7 @@
-name: macOS build and Safari verification
+name: Safari integration verification
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish v1.1.0 after both architectures pass
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -64,17 +59,6 @@ jobs:
             }
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
-      - name: Archive the test build
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          name="xiaohongshu-monitor-v1.1.0-macos-$ARCH.zip"
-          ditto -c -k --keepParent "$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app" "$RUNNER_TEMP/$name"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}
-          path: ${{ runner.temp }}/xiaohongshu-monitor-v1.1.0-macos-${{ matrix.arch }}.zip
-          if-no-files-found: error
       - name: Exercise Safari with a local fixture
         id: apple-events
         shell: /bin/bash --noprofile --norc -eo pipefail {0}
@@ -117,28 +101,3 @@ jobs:
       - name: Test fixture behavior in Safari WebDriver
         run: node macos/verify-safari.mjs --webdriver
 
-  publish:
-    if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: macos-*
-          path: packages
-          merge-multiple: true
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          cd packages
-          arm=xiaohongshu-monitor-v1.1.0-macos-arm64.zip
-          intel=xiaohongshu-monitor-v1.1.0-macos-x86_64.zip
-          sha256sum "$arm" "$intel" > SHA256SUMS.txt
-          gh release create v1.1.0 "$arm" "$intel" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title "v1.1.0 · macOS + Safari" \
-            --notes-file ../macos/RELEASE.md

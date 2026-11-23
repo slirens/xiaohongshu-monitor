@@ -1,0 +1,70 @@
+name: Build and verify macOS disk images
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dmg:
+    name: DMG / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      ARCH: ${{ matrix.arch }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Build the native app and DMG
+        run: |
+          test "$(uname -m)" = "$ARCH"
+          bash macos/build-dmg.sh "$RUNNER_TEMP/macos-dist" "$VERSION"
+      - name: Mount the DMG and verify the copied app and workbook
+        run: bash macos/verify-dmg.sh "$RUNNER_TEMP/macos-dist/xiaohongshu-monitor-v$VERSION-macos-$ARCH.dmg" "$ARCH" "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-${{ matrix.arch }}
+          path: ${{ runner.temp }}/macos-dist/xiaohongshu-monitor-v${{ inputs.version }}-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+  safari:
+    name: Safari WebDriver / ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      # Hosted runners may block macOS automation access. Keep this result separate from DMG verification.
+      - name: Exercise Safari WebDriver with the collection fixture
+        id: webdriver
+        continue-on-error: true
+        run: |
+          sudo /usr/bin/safaridriver --enable
+          node macos/verify-safari.mjs --webdriver
+      - name: Record the Safari outcome
+        if: always()
+        env:
+          SAFARI_OUTCOME: ${{ steps.webdriver.outcome }}
+        run: printf 'Safari WebDriver fixture outcome **%s**. The DMG check verifies app startup and workbook export separately.\n' "$SAFARI_OUTCOME" >> "$GITHUB_STEP_SUMMARY"

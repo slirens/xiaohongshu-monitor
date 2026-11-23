@@ -1,0 +1,51 @@
+name: Windows Setup build and verification
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Setup ${{ matrix.arch }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            node: '24.14.0'
+          - arch: x86
+            node: '22.23.5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          architecture: ${{ matrix.arch }}
+      - name: Build the per-user installer
+        shell: pwsh
+        env:
+          XHS_RELEASE_VERSION: ${{ inputs.version }}
+          XHS_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          ./windows/build-setup.ps1 -Version $env:XHS_RELEASE_VERSION -Architecture $env:XHS_TARGET_ARCH -OutputDirectory "$env:RUNNER_TEMP/setup"
+      - name: Verify installation, combined workbook, and clean uninstall
+        shell: pwsh
+        env:
+          XHS_RELEASE_VERSION: ${{ inputs.version }}
+          XHS_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "setup/xiaohongshu-monitor-v$env:XHS_RELEASE_VERSION-windows-$env:XHS_TARGET_ARCH-setup.exe"
+          ./windows/verify-setup.ps1 -Setup $installer -Architecture $env:XHS_TARGET_ARCH
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup-${{ matrix.arch }}
+          path: ${{ runner.temp }}/setup/xiaohongshu-monitor-v${{ inputs.version }}-windows-${{ matrix.arch }}-setup.exe
+          if-no-files-found: error

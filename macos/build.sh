@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 output="${1:-$root/macos-output}"
+version="${2:-1.1.0}"
 arch="$(uname -m)"
 node="$(command -v node)"
 node_license="$(dirname "$node")/../LICENSE"
@@ -13,9 +14,14 @@ runtime="$resources/runtime"
 [[ "$(uname -s)" == Darwin ]]
 [[ "$("$node" -p 'process.versions.node.split(".")[0]')" == 24 ]]
 test -f "$node_license"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 test ! -e "$app" || { printf '%s\n' "Choose an empty output directory." >&2; exit 1; }
 mkdir -p "$runtime" "$app/Contents/MacOS"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
+if [[ "$version" != 1.1.0 ]]; then
+  plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
+  plutil -replace CFBundleVersion -string "$version" "$app/Contents/Info.plist"
+fi
 cp "$root/monitor.mjs" "$root/safari.mjs" "$root/report-template.mjs" "$root/cover.png" "$root/报告生成模板.md" "$root/LICENSE" "$resources/"
 cp "$root/package.json" "$root/package-lock.json" "$runtime/"
 cp "$node_license" "$runtime/LICENSE.node"

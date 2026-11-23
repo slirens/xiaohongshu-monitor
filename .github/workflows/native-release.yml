@@ -1,0 +1,63 @@
+name: Native desktop installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish v1.4.0 when all four installer checks pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    uses: ./.github/workflows/windows-setup.yml
+    with:
+      version: '1.4.0'
+
+  macos:
+    uses: ./.github/workflows/macos-dmg.yml
+    with:
+      version: '1.4.0'
+
+  publish:
+    if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
+    needs: [windows, macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: windows-setup-*
+          path: packages
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: macos-dmg-*
+          path: packages
+          merge-multiple: true
+      - name: Publish the verified installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packages
+          packages=(
+            xiaohongshu-monitor-v1.4.0-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.4.0-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.4.0-macos-arm64.dmg
+            xiaohongshu-monitor-v1.4.0-macos-x86_64.dmg
+          )
+          sha256sum "${packages[@]}" > SHA256SUMS.txt
+          gh release create v1.4.0 "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.4.0 · Windows Setup / macOS DMG' \
+            --notes-file ../RELEASE.md --latest
