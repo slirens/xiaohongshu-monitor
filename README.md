@@ -12,7 +12,7 @@ Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 M
 
 ## 下载
 
-- [macOS 14 或更新系统 · Apple 芯片和 Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases)。Safari 验证完成后在 Releases 发布。
+- [macOS v1.1.0 · macOS 14 或更新系统 · Apple 芯片和 Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
 - [Windows x64 便携版](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
 
 ## 构建与运行

@@ -12,7 +12,9 @@
 2. 在 Safari「设置 → 高级」显示网页开发者功能，再在「开发 → 开发者设置」打开「允许来自 Apple 事件的 JavaScript」。启动监控时，在 macOS 权限提示里允许应用控制 Safari。
 3. 如需登录或验证，请在应用打开的 Safari 窗口手动完成，再回应用继续。
 
-此版本使用临时签名，尚未获得 Apple 公证。下载包可用 `SHA256SUMS.txt` 校验。GitHub Actions 使用本地网页验证 Safari 筛选、帖子跳转和前后台操作，使用模拟笔记验证 Excel 导出。真实小红书扫码和线上采集需在使用者的 Safari 环境完成。
+此版本采用临时签名，尚未获得 Apple 公证。可用 `SHA256SUMS.txt` 校验下载包。
+
+Apple 芯片和 Intel 版均已通过打包和多关键词 Excel 导出测试。Safari WebDriver 在两种架构上通过了模拟登录提示、日期筛选和帖子原文跳转测试。托管环境的 Apple Events 授权检查返回 `-1744`，需要用户在 Mac 上批准应用控制 Safari。首次授权、小红书扫码登录和真实采集仍需在可交互的 Mac 上验证。 [GitHub Actions 测试记录](https://github.com/slirens/xiaohongshu-monitor/actions/runs/45169733992)
 
 仅限合法、非商业使用。自动化浏览可能触发小红书的账号安全措施。
 
@@ -26,6 +28,8 @@ Download the `macos-arm64.zip` asset for Apple silicon or `macos-x86_64.zip` for
 2. In Safari Settings → Advanced, enable features for web developers. In Develop → Developer Settings, enable **Allow JavaScript from Apple Events**. When prompted by macOS, allow the app to control Safari.
 3. If Safari requests sign-in or verification, complete it manually, then return to the app and continue.
 
-The app is ad hoc signed and has not been notarized by Apple. Verify the ZIP against `SHA256SUMS.txt`. GitHub Actions tests Safari filtering, note redirects, and window controls against a local fixture and checks Excel export with sample notes. Real Xiaohongshu sign-in and collection depend on the user's Safari session.
+The app uses ad hoc signing, with Apple notarization outstanding. Verify the ZIP against `SHA256SUMS.txt`.
+
+The Apple silicon and Intel builds passed packaging and multi-keyword Excel export checks. Safari WebDriver verified the simulated sign-in prompt, date filtering, and redirects to the original note on both architectures. The hosted Apple Events permission check returned `-1744`, which requires a user to approve Safari control. First-time authorization, QR-code sign-in, and live Xiaohongshu collection still require verification on an interactive Mac. [GitHub Actions test results](https://github.com/slirens/xiaohongshu-monitor/actions/runs/45169733992)
 
 For lawful, noncommercial use only. Automated browsing can trigger Xiaohongshu's account safeguards.

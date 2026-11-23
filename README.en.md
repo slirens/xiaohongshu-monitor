@@ -6,7 +6,7 @@ A desktop app for Windows and macOS that collects Xiaohongshu notes by keyword a
 
 ## Download
 
-- [macOS 14 or later · Apple silicon and Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases). Packages are published after Safari verification passes.
+- [macOS v1.1.0 · macOS 14 or later · Apple silicon and Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
 - [Windows x64 portable edition](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
 
 ## Permitted use and platform restrictions
