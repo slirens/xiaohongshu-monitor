@@ -8,10 +8,10 @@ A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWE
 
 | Platform | Downloads | Release notes |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-windows-x86-setup.exe) | [v1.4.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.4.0) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-macos-x86_64.dmg) | [v1.4.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.4.0) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.3.0/xiaohongshu-monitor-v1.3.0-linux-amd64.deb) | [v1.3.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.3.0) |
-| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-setup.exe) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-macos-x86_64.dmg) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-linux-amd64.deb) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-harmonyos-browser.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 
 The Windows edition requires Windows 10 or later and uses Microsoft Edge or Google Chrome. The macOS edition requires macOS 14 or later and uses Safari.
 
@@ -27,7 +27,9 @@ The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc sign
 
 ### Linux
 
-On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.3.0-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
+On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.0.0-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
+
+APT will ask for downgrade confirmation if a previously released package with a higher version number is installed.
 
 To build from source, use amd64 Linux, `dpkg-deb`, and the official Node.js 24 LTS distribution with npm. Run `bash linux/build-deb.sh` from the repository root.
 
@@ -54,11 +56,11 @@ Sign in when the app opens its browser window. Separate keywords with spaces. Fo
 
 ## Date range and scrolling
 
-Windows and macOS v1.4.0 and Linux v1.3.0 support stopping at the start date. With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
+Version v1.0.0 supports stopping at the start date. With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
 
 ## Templates and reports
 
-Windows and macOS v1.4.0 and Linux v1.3.0 support structured templates. Copy [the sample Markdown template](报告生成模板.md), write your analysis criteria under `分析规则`, and edit the JSON in the `report-schema` block.
+Version v1.0.0 supports structured templates. Copy [the sample Markdown template](报告生成模板.md), write your analysis criteria under `分析规则`, and edit the JSON in the `report-schema` block.
 
 - `analysisFields` defines each note's output keys, column headings, and instructions. It supports text, boolean, and enum fields.
 - `summarySections` defines summary headings, order, and instructions.
