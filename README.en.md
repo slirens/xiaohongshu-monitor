@@ -2,9 +2,12 @@
 
 [简体中文](README.md) · English
 
-**[Download the Windows x64 portable app](https://github.com/slirens/xiaohongshu-monitor/releases/latest)**
+A desktop app for Windows and macOS that collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
 
-A Windows desktop app that collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
+## Download
+
+- [macOS 14 or later · Apple silicon and Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
+- [Windows x64 portable edition](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
 
 ## Permitted use and platform restrictions
 
@@ -13,6 +16,14 @@ A Windows desktop app that collects Xiaohongshu notes by keyword and publication
 **Automated browsing may trigger Xiaohongshu's account safeguards.** The platform may flag this activity as unusual, issue an account warning, request verification, or restrict access. According to the platform's account notice, repeated violations may affect account privileges and traffic. If you receive a warning or encounter a restriction, stop the task and follow the platform's instructions.
 
 ## Build and run
+
+### macOS
+
+Download the ZIP for your Mac's processor, extract it, and open the app. In Safari Settings → Advanced, enable features for web developers. In Develop → Developer Settings, enable **Allow JavaScript from Apple Events**. Allow the app to control Safari when macOS asks, then follow the app's prompt to sign in.
+
+To build from source, install the Xcode Command Line Tools and the official Node.js 24 LTS distribution with npm. Run `bash macos/build.sh` from the repository root. The app is built in `macos-output`, and reports are stored in `~/Library/Application Support/Xiaohongshu Monitor/reports`.
+
+### Windows
 
 1. Install Node.js 24 LTS with npm and have Microsoft Edge or Google Chrome available on Windows x64.
 2. Open PowerShell in the repository directory and run `pwsh -File .\build.ps1`.

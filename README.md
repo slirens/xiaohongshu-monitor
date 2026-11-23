@@ -2,17 +2,28 @@
 
 简体中文 · [English](README.en.md)
 
-**[下载 Windows x64 便携版](https://github.com/slirens/xiaohongshu-monitor/releases/latest)**
-
 ## 使用范围与平台风险
 
 **仅限合法、非商业使用。** 本项目公开源码，供个人学习、研究和测试等非商业用途。严禁用于违法活动或商业营利。使用前，请确认你有权访问及处理相关内容，并遵守适用法律和小红书的平台规则。
 
 **自动化浏览可能触发账号安全措施。** 小红书可能将自动化浏览识别为异常行为，发出账号警告、要求验证或限制访问。根据平台提示，多次违规可能影响账号权益和流量。收到警告或遇到限制时，请停止任务并按平台指引处理。
 
-Windows 桌面程序。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
+Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
+
+## 下载
+
+- [macOS 14 或更新系统 · Apple 芯片和 Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
+- [Windows x64 便携版](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
 
 ## 构建与运行
+
+### macOS
+
+从 Release 下载对应芯片的 ZIP，解压后打开应用。在 Safari「设置 → 高级」显示网页开发者功能，然后在「开发 → 开发者设置」打开「允许来自 Apple 事件的 JavaScript」。在 macOS 的权限提示中允许应用控制 Safari。按应用提示在监控窗口完成登录。
+
+从源码构建需要 macOS、Xcode Command Line Tools 和官方 Node.js 24 LTS（含 npm）。在仓库根目录执行 `bash macos/build.sh`，应用生成在 `macos-output`。报告生成在 `~/Library/Application Support/Xiaohongshu Monitor/reports`。
+
+### Windows
 
 1. 准备 Windows x64、Node.js 24 LTS（含 npm）和 Microsoft Edge 或 Google Chrome。
 2. 在仓库目录打开 PowerShell，执行 `pwsh -File .\build.ps1`。

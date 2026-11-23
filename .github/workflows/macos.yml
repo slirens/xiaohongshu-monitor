@@ -1,0 +1,108 @@
+name: macOS build and Safari verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish v1.1.0 after both architectures pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macOS / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Build and verify the app bundle
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          test "$(uname -m)" = "$ARCH"
+          bash macos/build.sh "$RUNNER_TEMP/macos-app"
+          app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
+          test "$(lipo -archs "$app/Contents/MacOS/XiaohongshuMonitor")" = "$ARCH"
+          test "$(lipo -archs "$app/Contents/Resources/runtime/node")" = "$ARCH"
+      - name: Exercise the bundled app and Excel export
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
+          fixture="$RUNNER_TEMP/notes.json"
+          printf '%s\n' '[{"title":"测试笔记","body":"桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
+          "$app/Contents/MacOS/XiaohongshuMonitor" --verify "$fixture" "$RUNNER_TEMP/verify"
+          "$app/Contents/Resources/runtime/node" - "$app/Contents/Resources/runtime" "$RUNNER_TEMP/verify/reports" <<'JS'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { Workbook } = require(path.join(process.argv[2], 'node_modules/exceljs'));
+          const dir = process.argv[3];
+          (async () => {
+            const files = fs.readdirSync(dir);
+            assert.equal(files.length, 1);
+            const workbook = new Workbook();
+            await workbook.xlsx.readFile(path.join(dir, files[0]));
+            assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['总结', '总表', '2026-11-23', '宝山', '硚口']);
+            for (const keyword of ['宝山', '硚口']) {
+              const sheet = workbook.getWorksheet(keyword);
+              assert.equal(sheet.getCell('B2').value, '测试笔记');
+              assert.equal(sheet.getCell('D2').hyperlink, 'https://www.xiaohongshu.com/explore/0123456789abcdef01234567');
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+      - name: Exercise Safari with a local fixture
+        run: |
+          defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
+          app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
+          "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
+      - name: Archive verified app
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          name="xiaohongshu-monitor-v1.1.0-macos-$ARCH.zip"
+          ditto -c -k --keepParent "$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app" "$RUNNER_TEMP/$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/xiaohongshu-monitor-v1.1.0-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  publish:
+    if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: macos-*
+          path: packages
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd packages
+          arm=xiaohongshu-monitor-v1.1.0-macos-arm64.zip
+          intel=xiaohongshu-monitor-v1.1.0-macos-x86_64.zip
+          sha256sum "$arm" "$intel" > SHA256SUMS.txt
+          gh release create v1.1.0 "$arm" "$intel" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "v1.1.0 · macOS + Safari" \
+            --notes-file ../macos/RELEASE.md

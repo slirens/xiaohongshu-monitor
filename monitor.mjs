@@ -717,7 +717,7 @@ async function main() {
 async function runBatch(request, ask) {
   try {
     require('exceljs');
-    if (!request.source) require('playwright');
+    if (!request.source && process.platform !== 'darwin') require('playwright');
   } catch (error) {
     throw new Error(`便携运行组件无法加载，请完整解压 ZIP 后运行，保留同级 runtime 文件夹（${error.code ?? '加载错误'}）。`);
   }
@@ -788,6 +788,10 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
         throw new Error('JSON 须为笔记数组，每条包含字符串 title、body、date，可选 url。');
       }
       data = { notes, candidates: notes.length, unreadable: 0 };
+    } else if (process.platform === 'darwin') {
+      const { collectSafari } = await import('./safari.mjs');
+      data = await collectSafari(keyword, { start, end, sort, screens, signal, presentation }, ask,
+        { parseDisplayedDate, presetsCovering });
     } else {
       const range = { start, end, sort, screens, background, presentation, signal };
       try {
