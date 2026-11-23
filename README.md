@@ -14,12 +14,14 @@
 
 | 系统 | 下载 | 发布说明 |
 | --- | --- | --- |
-| Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
-| macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-windows-x86-setup.exe) | [v1.4.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.4.0) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.4.0/xiaohongshu-monitor-v1.4.0-macos-x86_64.dmg) | [v1.4.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.4.0) |
 | Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.3.0/xiaohongshu-monitor-v1.3.0-linux-amd64.deb) | [v1.3.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.3.0) |
 | 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
 
-Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
+Windows 版要求 Windows 10 或更新版本，使用 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
+
+Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名，未经过 Apple 公证。首次打开时，系统可能提示安全确认。
 
 ## 构建与运行
 
@@ -35,13 +37,13 @@ Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrom
 
 ### macOS
 
-从 Release 下载对应芯片的 ZIP，解压后打开应用。在 Safari「设置 → 高级」显示网页开发者功能，然后在「开发 → 开发者设置」打开「允许来自 Apple 事件的 JavaScript」。在 macOS 的权限提示中允许应用控制 Safari。按应用提示在监控窗口完成登录。
+打开对应芯片的 DMG，将应用拖入「应用程序」。在 Safari「设置 → 高级」显示网页开发者功能，然后在「开发 → 开发者设置」打开「允许来自 Apple 事件的 JavaScript」。在 macOS 的权限提示中允许应用控制 Safari。按应用提示在监控窗口完成登录。
 
 从源码构建需要 macOS、Xcode Command Line Tools 和官方 Node.js 24 LTS（含 npm）。在仓库根目录执行 `bash macos/build.sh`，应用生成在 `macos-output`。报告生成在 `~/Library/Application Support/Xiaohongshu Monitor/reports`。
 
 ### Windows
 
-从上表下载对应架构的 ZIP，完整解压，打开 `小红书舆情监控v1.exe`。保留同级的 `runtime` 文件夹。
+64 位 Windows 下载 Setup x64，32 位 Windows 下载 Setup x86。运行安装程序，再从开始菜单打开「小红书舆情监控」。可通过 Windows「设置 → 应用」卸载。
 
 从源码构建时，安装 Microsoft Edge 或 Google Chrome，准备对应架构的 Node.js（含 npm），然后在仓库目录执行以下命令。
 
@@ -52,11 +54,11 @@ Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrom
 
 ## 日期范围和划屏
 
-Linux v1.3.0 和从当前源码构建的版本支持按开始日期停止划屏。选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
+Windows 和 macOS v1.4.0、Linux v1.3.0 支持按开始日期停止划屏。选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
 
 ## 模板与输出
 
-Linux v1.3.0 和从当前源码构建的版本支持结构化模板。从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
+Windows 和 macOS v1.4.0、Linux v1.3.0 支持结构化模板。从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
 
 - `analysisFields` 定义单篇笔记的输出字段、列名和判断要求。字段支持文本、布尔值及枚举。
 - `summarySections` 定义总结的标题、顺序和写作要求。
