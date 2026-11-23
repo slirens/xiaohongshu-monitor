@@ -44,8 +44,8 @@ const safariScript = `on run argv
   end tell
 end run`;
 
-function safariError(error) {
-  const details = String(error.stderr || error.message);
+function safariError(error, action) {
+  const details = String(error.stderr || (error.killed ? `Safari「${action}」响应超时` : error.code ?? error.message));
   if (/Apple Events|AppleScript is disabled|not allowed|not authorized|-1743|JavaScript.*disabled/i.test(details)) {
     return new Error('Safari 自动化权限未开启。请在 Safari「设置 → 高级」显示网页开发者功能，再在「开发 → 开发者设置」开启「允许来自 Apple 事件的 JavaScript」，并在 macOS「隐私与安全性 → 自动化」允许本应用控制 Safari。', { cause: error });
   }
@@ -64,7 +64,7 @@ export async function openSafari(url, signal, mode = 'foreground') {
       return result.stdout.trim();
     } catch (error) {
       if (useSignal) signal?.throwIfAborted();
-      throw safariError(error);
+      throw safariError(error, args[0]);
     }
   };
   const id = await run(['open', url, mode], false);

@@ -66,7 +66,14 @@ jobs:
           JS
       - name: Exercise Safari with a local fixture
         run: |
+          defaults write com.apple.Safari IncludeDevelopMenu -bool true
           defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
+          open -a /Applications/Safari.app 'about:blank'
+          /usr/bin/osascript <<'APPLESCRIPT'
+          with timeout of 12 seconds
+            tell application "Safari" to get count of windows
+          end timeout
+          APPLESCRIPT
           app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
           "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
       - name: Archive verified app
