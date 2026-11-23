@@ -43,7 +43,7 @@ jobs:
           XHS_TARGET_ARCH: ${{ matrix.arch }}
         run: |
           $installer = Join-Path $env:RUNNER_TEMP "setup/xiaohongshu-monitor-v$env:XHS_RELEASE_VERSION-windows-$env:XHS_TARGET_ARCH-setup.exe"
-          ./windows/verify-setup.ps1 -Setup $installer -Architecture $env:XHS_TARGET_ARCH
+          ./windows/verify-setup.ps1 -Setup $installer -Architecture $env:XHS_TARGET_ARCH -Version $env:XHS_RELEASE_VERSION
       - uses: actions/upload-artifact@v4
         with:
           name: windows-setup-${{ matrix.arch }}

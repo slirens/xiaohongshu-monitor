@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 output=${1:-"$repo/dist/linux"}
-version=${2:-1.3.0}
+version=${2:-1.0.0}
 app_id=xiaohongshu-monitor
 
 [[ $(uname -s) == Linux && $(dpkg --print-architecture) == amd64 ]] ||

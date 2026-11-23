@@ -30,6 +30,7 @@ binary="$app/Contents/MacOS/XiaohongshuMonitor"
 runtime="$app/Contents/Resources/runtime"
 codesign --verify --deep --strict "$app"
 test "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" = "$version"
+test "$(plutil -extract CFBundleVersion raw "$app/Contents/Info.plist")" = "$version"
 test "$(lipo -archs "$binary")" = "$arch"
 test "$(lipo -archs "$runtime/node")" = "$arch"
 

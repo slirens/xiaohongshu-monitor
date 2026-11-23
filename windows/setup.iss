@@ -8,6 +8,8 @@
 AppId={{3D8FB0B8-4391-4BC3-9A19-6CEC6993780F}
 AppName={#MonitorName}
 AppVersion={#ReleaseVersion}
+VersionInfoVersion={#ReleaseVersion}
+VersionInfoProductVersion={#ReleaseVersion}
 AppPublisher=slirens
 AppPublisherURL=https://github.com/slirens/xiaohongshu-monitor
 AppSupportURL=https://github.com/slirens/xiaohongshu-monitor/issues

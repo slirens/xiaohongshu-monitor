@@ -3,7 +3,10 @@ param(
     [string]$Setup,
     [Parameter(Mandatory)]
     [ValidateSet('x64', 'x86')]
-    [string]$Architecture
+    [string]$Architecture,
+    [Parameter(Mandatory)]
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+$')]
+    [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +34,8 @@ Invoke-CheckedProcess $setupPath $installArguments 'Installation'
 if (!(Test-Path -LiteralPath $shortcut)) { throw 'No Start menu shortcut was created.' }
 $registration = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{3D8FB0B8-4391-4BC3-9A19-6CEC6993780F}_is1'
 if ($registration.InstallLocation.Trim('"').TrimEnd('\') -ne $appFolder) { throw 'The application was not registered for the current user.' }
+if ($registration.DisplayVersion -ne $Version) { throw 'The registered app version is incorrect.' }
+if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion -ne $Version) { throw 'The installed executable version is incorrect.' }
 $expected = if ($Architecture -eq 'x64') { 'x64' } else { 'ia32' }
 if ((& $node -p 'process.arch') -ne $expected -or $LASTEXITCODE -ne 0) {
     throw "The installed Node runtime does not match $Architecture."

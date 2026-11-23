@@ -7,8 +7,20 @@ import { pageRead } from '../safari.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const output = resolve(process.argv[2] || join(root, 'output'));
+const version = process.argv[3];
+if (version !== undefined &&
+    (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version) ||
+     version === '0.0.0' || version.split('.').some(part => Number(part) > 65535))) {
+  throw new Error('Use a valid extension version in x.y.z form.');
+}
 await mkdir(output);
 await cp(join(root, 'extension'), output, { recursive: true });
+if (version !== undefined) {
+  const manifestPath = join(output, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.version = version;
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+}
 await cp(join(root, '..', 'LICENSE'), join(output, 'LICENSE'));
 await cp(join(root, '..', 'cover.png'), join(output, 'cover.png'));
 await cp(join(root, '..', '报告生成模板.md'), join(output, '报告生成模板.md'));

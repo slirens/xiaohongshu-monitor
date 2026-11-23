@@ -1,24 +1,21 @@
 name: Linux build, install, and verification
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      publish:
-        description: Publish v1.3.0 after both Ubuntu environments pass
-        type: boolean
-        default: false
+      version:
+        required: true
+        type: string
 
 permissions:
   contents: read
-
-concurrency:
-  group: linux-release-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   package:
     runs-on: ubuntu-22.04
     timeout-minutes: 12
+    env:
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,12 +23,14 @@ jobs:
           node-version: '24.14.0'
       - name: Build DEB x64
         run: |
-          bash linux/build-deb.sh "$RUNNER_TEMP/package" 1.3.0
-          dpkg-deb --info "$RUNNER_TEMP/package/"*.deb
+          bash linux/build-deb.sh "$RUNNER_TEMP/package" "$VERSION"
+          installer="$RUNNER_TEMP/package/xiaohongshu-monitor-v$VERSION-linux-amd64.deb"
+          test "$(dpkg-deb --field "$installer" Version)" = "$VERSION"
+          test "$(dpkg-deb --field "$installer" Architecture)" = amd64
       - uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
-          path: ${{ runner.temp }}/package/*.deb
+          path: ${{ runner.temp }}/package/xiaohongshu-monitor-v${{ inputs.version }}-linux-amd64.deb
           if-no-files-found: error
 
   verify:
@@ -42,6 +41,8 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 12
+    env:
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -51,10 +52,10 @@ jobs:
       - name: Install the downloaded package
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb xauth desktop-file-utils "$RUNNER_TEMP/package/"*.deb
+          sudo apt-get install -y xvfb xauth desktop-file-utils "$RUNNER_TEMP/package/xiaohongshu-monitor-v$VERSION-linux-amd64.deb"
           google-chrome --version
           desktop-file-validate /usr/share/applications/xiaohongshu-monitor.desktop
-          test "$(dpkg-query -W -f='${Version}' xiaohongshu-monitor)" = 1.3.0
+          test "$(dpkg-query -W -f='${Version}' xiaohongshu-monitor)" = "$VERSION"
       - name: Run the installed desktop app and export Excel
         run: |
           fixture="$RUNNER_TEMP/notes.json"
@@ -68,26 +69,3 @@ jobs:
           test ! -e /usr/bin/xiaohongshu-monitor
           test ! -e /usr/share/applications/xiaohongshu-monitor.desktop
 
-  publish:
-    if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
-    needs: verify
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: linux-amd64
-          path: packages
-      - name: Publish verified package
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          cd packages
-          installer=xiaohongshu-monitor-v1.3.0-linux-amd64.deb
-          sha256sum "$installer" > SHA256SUMS.txt
-          gh release create v1.3.0 "$installer" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title "v1.3.0 · Linux DEB x64" \
-            --notes-file ../linux/RELEASE.md

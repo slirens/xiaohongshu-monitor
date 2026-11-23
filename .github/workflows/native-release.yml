@@ -1,10 +1,10 @@
-name: Native desktop installers
+name: Build and verify all v1.0.0 packages
 
 on:
   workflow_dispatch:
     inputs:
-      publish:
-        description: Publish v1.4.0 when all four installer checks pass
+      prepare_release:
+        description: Prepare a draft with all verified v1.0.0 packages
         type: boolean
         default: false
 
@@ -12,23 +12,33 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-desktop-release-${{ github.ref }}
+  group: unified-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   windows:
     uses: ./.github/workflows/windows-setup.yml
     with:
-      version: '1.4.0'
+      version: '1.0.0'
 
   macos:
     uses: ./.github/workflows/macos-dmg.yml
     with:
-      version: '1.4.0'
+      version: '1.0.0'
 
-  publish:
-    if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
-    needs: [windows, macos]
+  linux:
+    uses: ./.github/workflows/linux.yml
+    with:
+      version: '1.0.0'
+
+  harmonyos:
+    uses: ./.github/workflows/harmonyos.yml
+    with:
+      version: '1.0.0'
+
+  prepare-release:
+    if: ${{ inputs.prepare_release && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
+    needs: [windows, macos, linux, harmonyos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -44,7 +54,15 @@ jobs:
           pattern: macos-dmg-*
           path: packages
           merge-multiple: true
-      - name: Publish the verified installers
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: harmonyos-browser
+          path: packages
+      - name: Attach all six verified packages to a release draft
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -52,12 +70,14 @@ jobs:
           set -euo pipefail
           cd packages
           packages=(
-            xiaohongshu-monitor-v1.4.0-windows-x64-setup.exe
-            xiaohongshu-monitor-v1.4.0-windows-x86-setup.exe
-            xiaohongshu-monitor-v1.4.0-macos-arm64.dmg
-            xiaohongshu-monitor-v1.4.0-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.0.0-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.0.0-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.0.0-macos-arm64.dmg
+            xiaohongshu-monitor-v1.0.0-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.0.0-linux-amd64.deb
+            xiaohongshu-monitor-v1.0.0-harmonyos-browser.zip
           )
           sha256sum "${packages[@]}" > SHA256SUMS.txt
-          gh release create v1.4.0 "${packages[@]}" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title 'v1.4.0 · Windows Setup / macOS DMG' \
-            --notes-file ../RELEASE.md --latest
+          gh release create "staging-v1.0.0-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.0.0' \
+            --notes-file ../RELEASE.md --draft

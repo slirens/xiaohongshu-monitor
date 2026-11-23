@@ -1,0 +1,50 @@
+name: HarmonyOS extension build and verification
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Build and unpack the browser extension ZIP
+        run: |
+          node harmonyos/build.mjs "$RUNNER_TEMP/extension" "$VERSION"
+          mkdir "$RUNNER_TEMP/package"
+          archive="$RUNNER_TEMP/package/xiaohongshu-monitor-v$VERSION-harmonyos-browser.zip"
+          (cd "$RUNNER_TEMP/extension" && zip -qr "$archive" .)
+          unzip -q "$archive" -d "$RUNNER_TEMP/unpacked"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile(process.argv[1], "utf8"));
+            assert.equal(manifest.version, process.env.VERSION);
+          ' "$RUNNER_TEMP/unpacked/manifest.json"
+      - name: Verify the packaged extension in Chromium
+        env:
+          XHS_RUNTIME: ${{ github.workspace }}
+          XHS_TEST_DIRECTORY: ${{ runner.temp }}
+          XHS_TEST_EXTENSION: ${{ runner.temp }}/unpacked
+        run: |
+          npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          node harmonyos/tests/verify-extension.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonyos-browser
+          path: ${{ runner.temp }}/package/xiaohongshu-monitor-v${{ inputs.version }}-harmonyos-browser.zip
+          if-no-files-found: error
