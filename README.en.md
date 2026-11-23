@@ -2,6 +2,8 @@
 
 [简体中文](README.md) · English
 
+**[Download the Windows x64 portable app](https://github.com/slirens/xiaohongshu-monitor/releases/latest)**
+
 A Windows desktop app that collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
 
 ## Permitted use and platform restrictions

@@ -2,6 +2,8 @@
 
 简体中文 · [English](README.en.md)
 
+**[下载 Windows x64 便携版](https://github.com/slirens/xiaohongshu-monitor/releases/latest)**
+
 ## 使用范围与平台风险
 
 **仅限合法、非商业使用。** 本项目公开源码，供个人学习、研究和测试等非商业用途。严禁用于违法活动或商业营利。使用前，请确认你有权访问及处理相关内容，并遵守适用法律和小红书的平台规则。
