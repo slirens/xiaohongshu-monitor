@@ -4,6 +4,7 @@ import { collectSafari, openSafari } from '../safari.mjs';
 import { parseDisplayedDate, presetsCovering } from '../monitor.mjs';
 
 const keyword = '宝山';
+const webdriver = process.argv.includes('--webdriver');
 const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format();
 const current = '0123456789abcdef01234567';
 const previous = '0123456789abcdef01234568';
@@ -37,27 +38,34 @@ const server = createServer((request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 try {
+  const open = webdriver ? (await import('./verify-safari-webdriver.mjs')).openSafariWebDriver : async (...args) => {
+    const window = await openSafari(...args);
+    try {
+      await window.mode('background');
+      await window.mode('foreground');
+      return window;
+    } catch (error) {
+      await window.close().catch(() => {});
+      throw error;
+    }
+  };
   const result = await collectSafari(keyword, { start: date, end: date, sort: '最新', screens: 1 }, async message => {
     assert.match(message, /完成小红书登录/);
     signedIn = true;
     asks++;
     return '继续';
-  }, { parseDisplayedDate, presetsCovering }, {
-    origin,
-    open: async (...args) => {
-      const window = await openSafari(...args);
-      await window.mode('background');
-      await window.mode('foreground');
-      return window;
-    },
-  });
+  }, { parseDisplayedDate, presetsCovering }, { origin, open });
   assert.equal(asks, 1);
   assert.equal(result.pageFilter, '一天内');
   assert.equal(result.candidates, 2);
   assert.deepEqual(opened, [current]);
   assert.deepEqual(result.notes.map(note => [note.title, note.date, note.url]),
     [['当天笔记', date, `${origin}/explore/${current}?mark=final`]]);
-  console.log('Safari passed login prompt, background/foreground, date filter and final note link checks.');
+  if (webdriver) {
+    console.log('Safari WebDriver passed fixture sign-in prompt, publication-date filter and final note link checks.');
+  } else {
+    console.log('Safari Apple Events passed fixture sign-in prompt, background/foreground, publication-date filter and final note link checks.');
+  }
 } finally {
   await new Promise(resolve => server.close(resolve));
 }

@@ -29,18 +29,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.14.0'
-      - name: Verify the Safari Apple Events connection
-        shell: /bin/bash --noprofile --norc -eo pipefail {0}
-        run: |
-          /usr/bin/defaults write com.apple.Safari IncludeDevelopMenu -bool true
-          /usr/bin/defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
-          /usr/bin/open -a /Applications/Safari.app 'about:blank'
-          cat > "$RUNNER_TEMP/safari-probe.applescript" <<'APPLESCRIPT'
-          with timeout of 15 seconds
-            tell application id "com.apple.Safari" to return count of windows
-          end timeout
-          APPLESCRIPT
-          /usr/bin/osascript "$RUNNER_TEMP/safari-probe.applescript"
       - name: Build and verify the app bundle
         env:
           ARCH: ${{ matrix.arch }}
@@ -88,10 +76,46 @@ jobs:
           path: ${{ runner.temp }}/xiaohongshu-monitor-v1.1.0-macos-${{ matrix.arch }}.zip
           if-no-files-found: error
       - name: Exercise Safari with a local fixture
+        id: apple-events
         shell: /bin/bash --noprofile --norc -eo pipefail {0}
         run: |
+          /usr/bin/defaults write com.apple.Safari IncludeDevelopMenu -bool true
+          /usr/bin/defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
+          /usr/bin/open -a /Applications/Safari.app 'about:blank'
           app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
           "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
+      - name: Diagnose Apple Events on the runner
+        if: ${{ failure() && steps.apple-events.conclusion == 'failure' }}
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
+        run: |
+          swiftc macos/probe-apple-events.swift -o "$RUNNER_TEMP/probe-apple-events"
+          "$RUNNER_TEMP/probe-apple-events"
+          for app in com.apple.Safari com.apple.finder; do
+            /usr/bin/osascript - "$app" <<'APPLESCRIPT' || true
+          on run argv
+            set appID to first item of argv
+            with timeout of 8 seconds
+              tell application id appID to return version
+            end timeout
+          end run
+          APPLESCRIPT
+          done
+
+  browser-check:
+    name: Safari WebDriver / ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Test fixture behavior in Safari WebDriver
+        run: node macos/verify-safari.mjs --webdriver
 
   publish:
     if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}

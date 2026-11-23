@@ -49,6 +49,9 @@ function safariError(error, action) {
   if (/Apple Events|AppleScript is disabled|not allowed|not authorized|-1743|JavaScript.*disabled/i.test(details)) {
     return new Error('Safari 自动化权限未开启。请在 Safari「设置 → 高级」显示网页开发者功能，再在「开发 → 开发者设置」开启「允许来自 Apple 事件的 JavaScript」，并在 macOS「隐私与安全性 → 自动化」允许本应用控制 Safari。', { cause: error });
   }
+  if (action === 'open' && (error.killed || /-1712/.test(details))) {
+    return new Error('等待 Safari 打开监控窗口超时。请打开 Safari，处理浏览器或 macOS 弹出的授权提示后重试。', { cause: error });
+  }
   return new Error(`Safari 操作失败：${details.trim().split('\n')[0]}`, { cause: error });
 }
 
@@ -59,7 +62,7 @@ export async function openSafari(url, signal, mode = 'foreground') {
   const run = async (args, useSignal = true) => {
     try {
       const result = await appleScript('/usr/bin/osascript', ['-e', safariScript, ...args], {
-        env, timeout: 17000, maxBuffer: 4 * 1024 * 1024, ...(useSignal ? { signal } : {}),
+        env, timeout: args[0] === 'open' ? 45000 : 17000, maxBuffer: 4 * 1024 * 1024, ...(useSignal ? { signal } : {}),
       });
       return result.stdout.trim();
     } catch (error) {
@@ -72,7 +75,10 @@ export async function openSafari(url, signal, mode = 'foreground') {
   return {
     navigate: value => run(['navigate', id, value]),
     url: () => run(['url', id]),
-    evaluate: async code => JSON.parse(await run(['evaluate', id, code])),
+    evaluate: async code => {
+      const result = await run(['evaluate', id, code]);
+      return !result || result === 'missing value' ? null : JSON.parse(result);
+    },
     mode: value => run([value, id]),
     close: () => run(['close', id], false),
   };
@@ -144,14 +150,19 @@ function siteOrigins(origin) {
   return origin === site ? [site, 'https://xiaohongshu.com'] : [origin];
 }
 
-function sameNote(address, origins) {
+function siteAddress(address, origins) {
   try {
     const url = new URL(address);
-    const id = notePattern.exec(url.pathname)?.[1];
-    return id && origins.includes(url.origin) && !url.username && !url.password ? { url, id } : null;
+    return origins.includes(url.origin) && !url.username && !url.password ? url : null;
   } catch {
     return null;
   }
+}
+
+function sameNote(address, origins) {
+  const url = siteAddress(address, origins);
+  const id = url && notePattern.exec(url.pathname)?.[1];
+  return id ? { url, id } : null;
 }
 
 export async function collectSafari(keyword, range, ask, helpers, test = {}) {
@@ -173,11 +184,8 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
   };
   if (presentation) presentation.apply = setMode;
   const isSearch = address => {
-    try {
-      const url = new URL(address);
-      return origins.includes(url.origin) && url.pathname.replace(/\/$/, '') === '/search_result' &&
-        url.searchParams.get('keyword') === keyword;
-    } catch { return false; }
+    const url = siteAddress(address, origins);
+    return url?.pathname.replace(/\/$/, '') === '/search_result' && url.searchParams.get('keyword') === keyword;
   };
   const wait = async (predicate, ms = 6500) => {
     const end = Date.now() + ms;
@@ -192,7 +200,7 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
   try {
     if (presentation?.mode === 'background') await setMode('background');
     const ready = () => wait(async () => {
-      if (!origins.includes(new URL(await browser.url(), origin).origin)) return null;
+      if (!siteAddress(await browser.url(), origins)) return null;
       const state = await read('state');
       return state && (state.login || (isSearch(state.url) && (state.filter || state.hasCards || state.empty))) ? state : null;
     });
