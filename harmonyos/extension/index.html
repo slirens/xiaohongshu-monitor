@@ -30,9 +30,11 @@
           <label>AI 服务商<select id="provider"><option value="">跳过 AI 分析</option></select></label>
           <label>模型<input id="model" type="text" placeholder="使用服务商默认模型" disabled></label>
           <label>API 密钥<input id="key" type="password" autocomplete="off" placeholder="仅用于本次任务" disabled></label>
-          <label>报告模板<input id="template" type="file" accept=".md,text/markdown" disabled></label>
+          <label>报告规则模板<input id="template" type="file" accept=".md,text/markdown" aria-describedby="template-status"></label>
         </div>
-        <p id="ai-hint" hidden>选用 AI 时，部分笔记标题和正文会发送给所选服务商。</p>
+        <p id="template-status" role="status">当前使用内置模板</p>
+        <button type="button" class="secondary" id="reset-template" hidden>使用内置模板</button>
+        <p id="ai-hint" hidden>选用 AI 时，笔记标题和正文片段会发送给所选服务商。</p>
       </details>
       <div class="actions">
         <button type="submit" id="start-job">开始监控</button>

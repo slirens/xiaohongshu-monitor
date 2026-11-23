@@ -12,36 +12,53 @@ permissions:
 
 jobs:
   package:
-    runs-on: ubuntu-24.04
+    runs-on: windows-2022
     timeout-minutes: 12
     env:
       VERSION: ${{ inputs.version }}
+      BROWSER_VERSION: '158.0.8127.36'
+      BROWSER_ARCHIVE_SHA256: 427A02BEB8887CECA6A1847DC67445580741C8C40BD15AF334993D3A59863943
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24.14.0'
       - name: Build and unpack the browser extension ZIP
+        shell: pwsh
         run: |
-          node harmonyos/build.mjs "$RUNNER_TEMP/extension" "$VERSION"
-          mkdir "$RUNNER_TEMP/package"
-          archive="$RUNNER_TEMP/package/xiaohongshu-monitor-v$VERSION-harmonyos-browser.zip"
-          (cd "$RUNNER_TEMP/extension" && zip -qr "$archive" .)
-          unzip -q "$archive" -d "$RUNNER_TEMP/unpacked"
-          node --input-type=module -e '
-            import assert from "node:assert/strict";
-            import { readFile } from "node:fs/promises";
-            const manifest = JSON.parse(await readFile(process.argv[1], "utf8"));
-            assert.equal(manifest.version, process.env.VERSION);
-          ' "$RUNNER_TEMP/unpacked/manifest.json"
-      - name: Verify the packaged extension in Chromium
+          $extension = Join-Path $env:RUNNER_TEMP 'extension'
+          $unpacked = Join-Path $env:RUNNER_TEMP 'unpacked'
+          $packages = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'package')
+          $archive = Join-Path $packages.FullName "xiaohongshu-monitor-v$env:VERSION-harmonyos-browser.zip"
+          node harmonyos/build.mjs $extension $env:VERSION
+          if ($LASTEXITCODE) { throw 'Extension build failed.' }
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($extension, $archive)
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($archive, $unpacked)
+          $manifest = Get-Content -LiteralPath (Join-Path $unpacked 'manifest.json') -Raw | ConvertFrom-Json
+          if ($manifest.version -ne $env:VERSION) { throw "Unexpected manifest version $($manifest.version)." }
+      - name: Set up the pinned Chrome for Testing build
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $archive = Join-Path $env:RUNNER_TEMP 'chrome-win32.zip'
+          $browserDir = Join-Path $env:RUNNER_TEMP 'browser'
+          $url = "https://storage.googleapis.com/chrome-for-testing-public/$env:BROWSER_VERSION/win32/chrome-win32.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive -TimeoutSec 180
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $env:BROWSER_ARCHIVE_SHA256) {
+            throw 'The pinned Chrome for Testing download did not match its checksum.'
+          }
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($archive, $browserDir)
+          $executable = Join-Path $browserDir 'chrome-win32/chrome.exe'
+          "XHS_CHROMIUM=$executable" >> $env:GITHUB_ENV
+      - name: Verify the packaged extension in Chrome for Testing
+        shell: pwsh
         env:
           XHS_RUNTIME: ${{ github.workspace }}
           XHS_TEST_DIRECTORY: ${{ runner.temp }}
           XHS_TEST_EXTENSION: ${{ runner.temp }}/unpacked
         run: |
-          npm ci --ignore-scripts --omit=dev --no-audit --no-fund
-          npx --no-install playwright install --with-deps chromium
+          npm.cmd ci --ignore-scripts --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE) { throw 'Test dependencies could not be installed.' }
           node harmonyos/tests/verify-extension.mjs
       - uses: actions/upload-artifact@v4
         with:
