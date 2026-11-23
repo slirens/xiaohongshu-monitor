@@ -29,6 +29,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.14.0'
+      - name: Verify the Safari Apple Events connection
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
+        run: |
+          /usr/bin/defaults write com.apple.Safari IncludeDevelopMenu -bool true
+          /usr/bin/defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
+          /usr/bin/open -a /Applications/Safari.app 'about:blank'
+          cat > "$RUNNER_TEMP/safari-probe.applescript" <<'APPLESCRIPT'
+          with timeout of 15 seconds
+            tell application id "com.apple.Safari" to return count of windows
+          end timeout
+          APPLESCRIPT
+          /usr/bin/osascript "$RUNNER_TEMP/safari-probe.applescript"
       - name: Build and verify the app bundle
         env:
           ARCH: ${{ matrix.arch }}
@@ -76,21 +88,10 @@ jobs:
           path: ${{ runner.temp }}/xiaohongshu-monitor-v1.1.0-macos-${{ matrix.arch }}.zip
           if-no-files-found: error
       - name: Exercise Safari with a local fixture
+        shell: /bin/bash --noprofile --norc -eo pipefail {0}
         run: |
-          uid="$(id -u)"
-          /bin/launchctl print "gui/$uid" >/dev/null
-          gui=(/bin/launchctl asuser "$uid")
-          "${gui[@]}" /usr/bin/defaults write com.apple.Safari IncludeDevelopMenu -bool true
-          "${gui[@]}" /usr/bin/defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
-          "${gui[@]}" /usr/bin/open -a /Applications/Safari.app 'about:blank'
-          sleep 3
-          "${gui[@]}" /usr/bin/osascript <<'APPLESCRIPT'
-          with timeout of 12 seconds
-            tell application "Safari" to get count of windows
-          end timeout
-          APPLESCRIPT
           app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
-          "${gui[@]}" "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
+          "$app/Contents/Resources/runtime/node" macos/verify-safari.mjs
 
   publish:
     if: ${{ inputs.publish && github.ref == 'refs/heads/main' }}
