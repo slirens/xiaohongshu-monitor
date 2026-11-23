@@ -8,7 +8,7 @@
 
 **自动化浏览可能触发账号安全措施。** 小红书可能将自动化浏览识别为异常行为，发出账号警告、要求验证或限制访问。根据平台提示，多次违规可能影响账号权益和流量。收到警告或遇到限制时，请停止任务并按平台指引处理。
 
-Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
+提供 Windows、macOS 桌面版和鸿蒙电脑华为浏览器扩展预览版。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
 
 ## 下载
 
@@ -16,10 +16,15 @@ Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 M
 | --- | --- | --- |
 | Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 | macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
 
 Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
 ## 构建与运行
+
+### 鸿蒙电脑
+
+解压扩展 ZIP，在华为浏览器的「管理扩展程序」加载含有 `manifest.json` 的文件夹。使用 HarmonyOS 6.0 或更新版本及华为浏览器 5.1.10.300 或更新版本。详细操作和源码构建命令见鸿蒙电脑扩展说明。 [安装与构建](harmonyos/README.md)
 
 ### macOS
 

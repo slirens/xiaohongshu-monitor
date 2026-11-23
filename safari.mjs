@@ -85,7 +85,7 @@ export async function openSafari(url, signal, mode = 'foreground') {
 }
 
 // Evaluated only in the dedicated monitoring window, on the active site's origin.
-function pageRead(kind, value, allowedOrigins) {
+export function pageRead(kind, value, allowedOrigins) {
   if (!allowedOrigins.includes(location.origin)) return JSON.stringify(null);
   const visible = element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
   const caption = element => (element.innerText ?? element.textContent ?? '').trim();

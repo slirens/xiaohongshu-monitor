@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "小红书舆情监控",
+  "version": "1.2.0",
+  "description": "在华为浏览器中按关键词和日期收集笔记并导出 Excel。",
+  "action": {
+    "default_title": "小红书舆情监控",
+    "default_popup": "launcher.html"
+  },
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*",
+    "https://xiaohongshu.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.moonshot.cn/*",
+    "https://open.bigmodel.cn/*",
+    "https://dashscope.aliyuncs.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.xiaohongshu.com/*",
+        "https://xiaohongshu.com/*"
+      ],
+      "js": ["page.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

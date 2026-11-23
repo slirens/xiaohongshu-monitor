@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-A desktop app for Windows and macOS that collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
+A desktop tool for Windows and macOS, with a preview extension for HUAWEI Browser on HarmonyOS PCs. It collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
 
 ## Download
 
@@ -10,6 +10,7 @@ A desktop app for Windows and macOS that collects Xiaohongshu notes by keyword a
 | --- | --- | --- |
 | Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 | macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
 
 The Windows x86 edition requires a compatible installation of Microsoft Edge or Google Chrome. The macOS edition requires macOS 14 or later and uses Safari.
 
@@ -20,6 +21,10 @@ The Windows x86 edition requires a compatible installation of Microsoft Edge or 
 **Automated browsing may trigger Xiaohongshu's account safeguards.** The platform may flag this activity as unusual, issue an account warning, request verification, or restrict access. According to the platform's account notice, repeated violations may affect account privileges and traffic. If you receive a warning or encounter a restriction, stop the task and follow the platform's instructions.
 
 ## Build and run
+
+### HarmonyOS PC
+
+Extract the ZIP and load the folder containing `manifest.json` from Manage extensions in HUAWEI Browser. Use HarmonyOS 6.0 or later and HUAWEI Browser 5.1.10.300 or later. [Installation and build instructions](harmonyos/README.md)
 
 ### macOS
 

@@ -835,7 +835,7 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
     }, notes: matched };
 }
 
-export { selectNotes, exportReport, analyse, parseDisplayedDate, presetsCovering, applySearchFilters, selectBrowser, aiConfig, requestAi };
+export { datePattern, timePresets, validDate, selectNotes, exportReport, analyse, parseDisplayedDate, presetsCovering, applySearchFilters, selectBrowser, aiConfig, requestAi };
 if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(error => {
     console.error(`运行失败：${error.message}`);
