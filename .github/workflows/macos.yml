@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15
+          - runner: macos-26
             arch: arm64
-          - runner: macos-15-intel
+          - runner: macos-26-intel
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
@@ -69,6 +69,7 @@ jobs:
           defaults write com.apple.Safari IncludeDevelopMenu -bool true
           defaults write com.apple.Safari AllowJavaScriptFromAppleEvents -bool true
           open -a /Applications/Safari.app 'about:blank'
+          sleep 3
           /usr/bin/osascript <<'APPLESCRIPT'
           with timeout of 12 seconds
             tell application "Safari" to get count of windows
