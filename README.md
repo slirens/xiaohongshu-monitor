@@ -14,7 +14,7 @@ Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 M
 
 | 系统 | 下载 | 发布说明 |
 | --- | --- | --- |
-| Windows | [Portable x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [Portable x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 | macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
 
 Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
@@ -44,7 +44,7 @@ Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrom
 
 ## 发布前检查
 
-公开仓库只收录源码和示例模板。便携发布包单独构建，并附所分发依赖的许可证。
+公开仓库只收录源码和示例模板。发布包单独构建，并附所分发依赖的许可证。
 
 ## 许可证
 
