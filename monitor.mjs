@@ -215,10 +215,12 @@ async function collect(keyword, range, ask, background = false) {
   delete browserEnv.XHS_AI_KEY;
   delete browserEnv.OPENAI_API_KEY;
   const preferred = windowsBrowser();
-  const portableChrome = join(dirname(process.execPath), 'browser', 'chrome-win64', 'chrome.exe');
-  const bundled = existsSync(portableChrome) ? portableChrome : chromium.executablePath();
+  const browserFolder = process.arch === 'ia32' ? 'chrome-win32' : 'chrome-win64';
+  const packagedChrome = join(dirname(process.execPath), 'browser', browserFolder, 'chrome.exe');
+  const bundled = existsSync(packagedChrome) ? packagedChrome :
+    process.arch === 'ia32' ? null : chromium.executablePath();
   const candidates = [preferred,
-    ...(existsSync(bundled) ? [{ name: '便携 Chromium', executablePath: bundled, profile: '.chromium-session' }] : []),
+    ...(bundled && existsSync(bundled) ? [{ name: 'Chromium', executablePath: bundled, profile: '.chromium-session' }] : []),
     selectBrowser(preferred.channel === 'chrome' ? 'MSEdgeHTM' : 'ChromeHTML')];
   let context, browser, headless, marker;
   for (const candidate of candidates) {
@@ -236,7 +238,7 @@ async function collect(keyword, range, ask, background = false) {
       console.log(`${browser.name} 启动失败：${error.message.split('\n')[0]}`);
     }
   }
-  if (!context) throw new Error('没有可启动的浏览器。请完整解压新版便携 ZIP，并关闭此前运行的监控程序后重试。');
+  if (!context) throw new Error('没有可启动的浏览器。请安装适用于此系统的 Microsoft Edge 或 Google Chrome，关闭此前运行的监控程序后重试。');
   const abortBrowser = () => { void context.close().catch(() => {}); };
   let detachPresentation;
   signal?.addEventListener('abort', abortBrowser, { once: true });
@@ -719,7 +721,7 @@ async function runBatch(request, ask) {
     require('exceljs');
     if (!request.source && process.platform !== 'darwin') require('playwright');
   } catch (error) {
-    throw new Error(`便携运行组件无法加载，请完整解压 ZIP 后运行，保留同级 runtime 文件夹（${error.code ?? '加载错误'}）。`);
+    throw new Error(`运行组件无法加载，请完整解压 ZIP 后运行，保留同级 runtime 文件夹（${error.code ?? '加载错误'}）。`);
   }
   const terms = request.keyword.trim().split(/\s+/u).filter(Boolean);
   if (!terms.length) throw new Error('请输入至少一个关键词。');

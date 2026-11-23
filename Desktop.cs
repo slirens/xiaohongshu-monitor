@@ -811,7 +811,7 @@ internal sealed partial class Desktop : Form
         string node = Path.Combine(runtime, "node.exe");
         if (File.Exists(node) && File.Exists(Path.Combine(runtime, "node_modules", "exceljs", "package.json")) &&
             File.Exists(Path.Combine(runtime, "node_modules", "playwright", "package.json"))) return node;
-        throw new FileNotFoundException("运行组件缺失。请完整解压便携版 ZIP，并把 runtime 文件夹和 EXE 放在同一个目录。");
+        throw new FileNotFoundException("运行组件缺失。请完整解压 ZIP，并把 runtime 文件夹和 EXE 放在同一个目录。");
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
