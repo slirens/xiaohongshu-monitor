@@ -1,0 +1,10 @@
+/runtime/
+/node_modules/
+/reports/
+/dist/
+/.edge-session/
+/.chrome-session/
+/.chromium-session/
+*.exe
+.env
+.env.*
