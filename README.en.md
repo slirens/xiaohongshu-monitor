@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-A desktop tool for Windows and macOS, with a preview extension for HUAWEI Browser on HarmonyOS PCs. It collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
+A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWEI Browser on HarmonyOS PCs. It collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
 
 ## Download
 
@@ -10,6 +10,7 @@ A desktop tool for Windows and macOS, with a preview extension for HUAWEI Browse
 | --- | --- | --- |
 | Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 | macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.3.0/xiaohongshu-monitor-v1.3.0-linux-amd64.deb) | [v1.3.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.3.0) |
 | HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
 
 The Windows x86 edition requires a compatible installation of Microsoft Edge or Google Chrome. The macOS edition requires macOS 14 or later and uses Safari.
@@ -21,6 +22,12 @@ The Windows x86 edition requires a compatible installation of Microsoft Edge or 
 **Automated browsing may trigger Xiaohongshu's account safeguards.** The platform may flag this activity as unusual, issue an account warning, request verification, or restrict access. According to the platform's account notice, repeated violations may affect account privileges and traffic. If you receive a warning or encounter a restriction, stop the task and follow the platform's instructions.
 
 ## Build and run
+
+### Linux
+
+On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.3.0-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
+
+To build from source, use amd64 Linux, `dpkg-deb`, and the official Node.js 24 LTS distribution with npm. Run `bash linux/build-deb.sh` from the repository root.
 
 ### HarmonyOS PC
 
@@ -43,11 +50,13 @@ To build from source, have Microsoft Edge or Google Chrome available and use Nod
 
 Sign in when the app opens its browser window. Separate keywords with spaces. For AI analysis, select a provider in More Settings and enter its API key. Enabling AI analysis sends note excerpts and the data needed for the report summary to the selected provider.
 
-With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
+## Date range and scrolling
+
+Linux v1.3.0 and builds from the current source support stopping at the start date. With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
 
 ## Templates and reports
 
-Copy [the sample Markdown template](报告生成模板.md), write your analysis criteria under `分析规则`, and edit the JSON in the `report-schema` block.
+Linux v1.3.0 and builds from the current source support structured templates. Copy [the sample Markdown template](报告生成模板.md), write your analysis criteria under `分析规则`, and edit the JSON in the `report-schema` block.
 
 - `analysisFields` defines each note's output keys, column headings, and instructions. It supports text, boolean, and enum fields.
 - `summarySections` defines summary headings, order, and instructions.

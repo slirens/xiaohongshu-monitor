@@ -8,7 +8,7 @@
 
 **自动化浏览可能触发账号安全措施。** 小红书可能将自动化浏览识别为异常行为，发出账号警告、要求验证或限制访问。根据平台提示，多次违规可能影响账号权益和流量。收到警告或遇到限制时，请停止任务并按平台指引处理。
 
-提供 Windows、macOS 桌面版和鸿蒙电脑华为浏览器扩展预览版。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
+提供 Windows、macOS、Linux 桌面版和鸿蒙电脑华为浏览器扩展预览版。按关键词和发布日期采集笔记，用 Markdown 模板导出 Excel。支持 OpenAI、Claude、Gemini、DeepSeek、Kimi、GLM 与 Qwen。
 
 ## 下载
 
@@ -16,11 +16,18 @@
 | --- | --- | --- |
 | Windows | [ZIP x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [ZIP x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
 | macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.3.0/xiaohongshu-monitor-v1.3.0-linux-amd64.deb) | [v1.3.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.3.0) |
 | 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.2.0/xiaohongshu-monitor-v1.2.0-harmonyos-browser.zip) | [v1.2.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.2.0) |
 
 Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
 ## 构建与运行
+
+### Linux
+
+在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.3.0-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
+
+从源码构建需要 amd64 Linux、`dpkg-deb` 和官方 Node.js 24 LTS（含 npm）。在仓库目录执行 `bash linux/build-deb.sh`。
 
 ### 鸿蒙电脑
 
@@ -43,11 +50,13 @@ Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrom
 
 首次运行在程序打开的浏览器窗口完成登录。多个关键词用空格分隔。需要 AI 分析时，在「更多设置」选择服务商并输入相应 API 密钥。开启 AI 分析会向所选平台发送笔记片段及报告总结所需的数据。
 
-选择「最新」排序和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天按正常范围纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
+## 日期范围和划屏
+
+Linux v1.3.0 和从当前源码构建的版本支持按开始日期停止划屏。选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
 
 ## 模板与输出
 
-从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
+Linux v1.3.0 和从当前源码构建的版本支持结构化模板。从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
 
 - `analysisFields` 定义单篇笔记的输出字段、列名和判断要求。字段支持文本、布尔值及枚举。
 - `summarySections` 定义总结的标题、顺序和写作要求。
