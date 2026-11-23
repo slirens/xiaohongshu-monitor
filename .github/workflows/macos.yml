@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           app="$RUNNER_TEMP/macos-app/Xiaohongshu Monitor.app"
           fixture="$RUNNER_TEMP/notes.json"
-          printf '%s\n' '[{"title":"测试笔记","body":"桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
+          printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
           "$app/Contents/MacOS/XiaohongshuMonitor" --verify "$fixture" "$RUNNER_TEMP/verify"
           "$app/Contents/Resources/runtime/node" - "$app/Contents/Resources/runtime" "$RUNNER_TEMP/verify/reports" <<'JS'
           const assert = require('node:assert/strict');
