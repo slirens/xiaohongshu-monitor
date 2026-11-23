@@ -6,8 +6,12 @@ A desktop app for Windows and macOS that collects Xiaohongshu notes by keyword a
 
 ## Download
 
-- [macOS v1.1.0 · macOS 14 or later · Apple silicon and Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
-- [Windows x64 portable edition](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
+| Platform | Downloads | Release notes |
+| --- | --- | --- |
+| Windows | [Portable x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [Portable x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+
+The Windows x86 edition requires a compatible installation of Microsoft Edge or Google Chrome. The macOS edition requires macOS 14 or later and uses Safari.
 
 ## Permitted use and platform restrictions
 
@@ -25,9 +29,12 @@ To build from source, install the Xcode Command Line Tools and the official Node
 
 ### Windows
 
-1. Install Node.js 24 LTS with npm and have Microsoft Edge or Google Chrome available on Windows x64.
-2. Open PowerShell in the repository directory and run `pwsh -File .\build.ps1`.
-3. Launch `小红书舆情监控v1.exe` and keep the adjacent `runtime` folder in place.
+Download the ZIP for your architecture, extract it in full, and launch `小红书舆情监控v1.exe`. Keep the adjacent `runtime` folder in place.
+
+To build from source, have Microsoft Edge or Google Chrome available and use Node.js with npm for the target architecture. Run the command for your architecture from the repository directory.
+
+- Use Node.js 24 LTS for x64 and run `pwsh -File .\build.ps1`.
+- Use 32-bit Node.js 22 LTS for x86 and run `pwsh -File .\build.ps1 -Architecture x86 -OutputDirectory .\dist\windows-x86 -Node "C:\tools\node-x86\node.exe"`. Replace the example Node.js path with your own.
 
 Sign in when the app opens its browser window. Separate keywords with spaces. For AI analysis, select a provider in More Settings and enter its API key. Enabling AI analysis sends note excerpts and the data needed for the report summary to the selected provider.
 

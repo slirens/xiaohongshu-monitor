@@ -12,8 +12,12 @@ Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 M
 
 ## 下载
 
-- [macOS v1.1.0 · macOS 14 或更新系统 · Apple 芯片和 Intel · Safari](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0)
-- [Windows x64 便携版](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0)
+| 系统 | 下载 | 发布说明 |
+| --- | --- | --- |
+| Windows | [Portable x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-portable.zip) · [Portable x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-portable.zip) | [v1.0.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.0) |
+| macOS | [ZIP Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-arm64.zip) · [ZIP Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.0/xiaohongshu-monitor-v1.1.0-macos-x86_64.zip) | [v1.1.0](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.0) |
+
+Windows x86 版需要已安装适用于系统的 Microsoft Edge 或 Google Chrome。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
 ## 构建与运行
 
@@ -25,9 +29,12 @@ Windows 和 macOS 桌面程序。按关键词和发布日期采集笔记，用 M
 
 ### Windows
 
-1. 准备 Windows x64、Node.js 24 LTS（含 npm）和 Microsoft Edge 或 Google Chrome。
-2. 在仓库目录打开 PowerShell，执行 `pwsh -File .\build.ps1`。
-3. 打开生成的 `小红书舆情监控v1.exe`。保留同级的 `runtime` 文件夹。
+从上表下载对应架构的 ZIP，完整解压，打开 `小红书舆情监控v1.exe`。保留同级的 `runtime` 文件夹。
+
+从源码构建时，安装 Microsoft Edge 或 Google Chrome，准备对应架构的 Node.js（含 npm），然后在仓库目录执行以下命令。
+
+- x64 使用 Node.js 24 LTS，执行 `pwsh -File .\build.ps1`。
+- x86 使用 Node.js 22 LTS 的 32 位版本，执行 `pwsh -File .\build.ps1 -Architecture x86 -OutputDirectory .\dist\windows-x86 -Node "C:\tools\node-x86\node.exe"`。将示例中的 Node.js 路径换成实际路径。
 
 首次运行在程序打开的浏览器窗口完成登录。多个关键词用空格分隔。需要 AI 分析时，在「更多设置」选择服务商并输入相应 API 密钥。开启 AI 分析会向所选平台发送笔记片段及报告总结所需的数据。
 
