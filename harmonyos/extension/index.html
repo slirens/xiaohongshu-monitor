@@ -3,57 +3,70 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>小红书舆情监控</title>
+  <title data-en="Xiaohongshu Monitor">小红书舆情监控</title>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main>
-    <header>
-      <img src="cover.png" width="72" height="72" alt="">
-      <div>
-        <h1>小红书舆情监控</h1>
-        <p>按关键词和日期检索笔记，导出 Excel。</p>
-      </div>
-    </header>
-    <form id="job">
-      <label for="terms">关键词</label>
-      <textarea id="terms" name="terms" rows="2" placeholder="用空格分隔，例如 宝山 硚口" required></textarea>
-      <div class="two">
-        <label>开始日期<input id="start" type="date" required></label>
-        <label>结束日期<input id="end" type="date" required></label>
-      </div>
-      <details>
-        <summary>更多设置</summary>
+  <main class="workbench">
+    <aside class="sidebar">
+      <img src="cover.png" width="195" height="183" alt="">
+      <p class="brand" data-en="Xiaohongshu Monitor">小红书舆情监控</p>
+    </aside>
+    <div class="workspace">
+      <header>
+        <h1 data-en="New monitoring task">新建监控任务</h1>
+        <p data-en="Collect notes by keyword and date, then export to Excel.">按关键词和日期采集笔记，导出 Excel 报告。</p>
+      </header>
+      <form id="job">
+        <label for="terms" data-en="Keywords">关键词</label>
+        <textarea id="terms" name="terms" rows="1" placeholder="多个关键词用空格分隔，例如 宝山 硚口" data-en-placeholder="Separate keywords with spaces, e.g. Baoshan Qiaokou" required></textarea>
         <div class="two">
-          <label>排序<select id="sort"><option>最新</option><option>综合</option></select></label>
-          <label>划屏数量<input id="screens" type="number" min="1" max="10000" step="1" placeholder="下拉到底"></label>
-          <label>AI 服务商<select id="provider"><option value="">跳过 AI 分析</option></select></label>
-          <label>模型<input id="model" type="text" placeholder="使用服务商默认模型" disabled></label>
-          <label>API 密钥<input id="key" type="password" autocomplete="off" placeholder="仅用于本次任务" disabled></label>
-          <label>报告规则模板<input id="template" type="file" accept=".md,text/markdown" aria-describedby="template-status"></label>
+          <label><span data-en="Start date">开始日期</span><input id="start" type="date" required></label>
+          <label><span data-en="End date">结束日期</span><input id="end" type="date" required></label>
         </div>
-        <p id="template-status" role="status">当前使用内置模板</p>
-        <button type="button" class="secondary" id="reset-template" hidden>使用内置模板</button>
-        <p id="ai-hint" hidden>选用 AI 时，笔记标题和正文片段会发送给所选服务商。</p>
-      </details>
-      <div class="actions">
-        <button type="submit" id="start-job">开始监控</button>
-        <button type="button" class="secondary" id="show-browser" hidden>打开采集标签页</button>
-        <button type="button" class="secondary" id="stop" hidden>停止</button>
-        <button type="button" class="secondary" id="download" hidden>下载 Excel</button>
-      </div>
-    </form>
-    <section class="progress" aria-labelledby="status">
-      <h2 id="status" role="status">准备就绪</h2>
-      <progress id="progress" value="0" max="1" aria-label="关键词完成进度"></progress>
-      <div id="prompt" hidden>
-        <p id="prompt-text"></p>
-        <label id="prompt-choice-label" hidden>已应用的网页选项<select id="prompt-choice"></select></label>
-        <button type="button" id="proceed">继续</button>
-      </div>
-      <ol id="history"></ol>
-    </section>
-    <p class="notice">自动化浏览可能触发平台验证或限制。请按平台提示完成登录或验证。</p>
+        <details>
+          <summary>
+            <span data-en="More settings">更多设置</span>
+            <span id="settings-summary" class="settings-summary"></span>
+          </summary>
+          <div class="settings-options">
+            <div class="two">
+              <label><span data-en="Sort by">排序</span><select id="sort">
+                <option value="最新" data-en="Latest">最新</option>
+                <option value="综合" data-en="Relevance">综合</option>
+              </select></label>
+              <label><span data-en="Number of screens">划屏数量</span><input id="screens" type="number" min="1" max="10000" step="1" placeholder="下拉到底" data-en-placeholder="Scroll to end"></label>
+              <label><span data-en="AI provider">AI 服务商</span><select id="provider"><option value="" data-en="Skip AI analysis">跳过 AI 分析</option></select></label>
+              <label><span data-en="Model">模型</span><input id="model" type="text" placeholder="使用服务商默认模型" data-en-placeholder="Use the provider’s default model" disabled></label>
+              <label><span data-en="API key">API 密钥</span><input id="key" type="password" autocomplete="off" placeholder="仅用于本次任务" data-en-placeholder="Used for this task only" disabled></label>
+              <label><span data-en="Report template">报告规则模板</span><input id="template" type="file" accept=".md,text/markdown" aria-describedby="template-status"></label>
+            </div>
+            <p id="template-status" role="status" data-en="Using the built-in template">当前使用内置模板</p>
+            <button type="button" class="secondary" id="reset-template" data-en="Use built-in template" hidden>使用内置模板</button>
+            <p id="ai-hint" data-en="When AI is enabled, note titles and excerpts are sent to the selected provider." hidden>选用 AI 时，笔记标题和正文片段会发送给所选服务商。</p>
+          </div>
+        </details>
+        <div class="task-bar">
+          <p id="status" role="status" data-en="Ready">准备就绪</p>
+          <div class="actions">
+            <button type="button" class="secondary" id="show-browser" data-en="Open collection tab" hidden>打开采集标签页</button>
+            <button type="button" class="secondary" id="stop" data-en="Stop" hidden>停止</button>
+            <button type="button" class="secondary" id="download" data-en="Download Excel" hidden>下载 Excel</button>
+            <button type="submit" id="start-job" data-en="Start monitoring">开始监控</button>
+          </div>
+        </div>
+      </form>
+      <section id="progress-panel" class="progress" aria-labelledby="status" hidden>
+        <progress id="progress" value="0" max="1" aria-label="关键词完成进度" data-en-aria="Keyword completion progress"></progress>
+        <div id="prompt" hidden>
+          <p id="prompt-text"></p>
+          <label id="prompt-choice-label" hidden><span data-en="Option selected on the website">已应用的网页选项</span><select id="prompt-choice"></select></label>
+          <button type="button" id="proceed" data-en="Continue">继续</button>
+        </div>
+        <ol id="history"></ol>
+      </section>
+      <p class="notice" data-en="Automated browsing may trigger verification or restrictions. Follow the website’s instructions to sign in or verify.">自动化浏览可能触发平台验证或限制。请按平台提示完成登录或验证。</p>
+    </div>
   </main>
   <script type="module" src="app.mjs"></script>
 </body>

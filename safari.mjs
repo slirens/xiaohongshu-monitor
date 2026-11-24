@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+const ui = (zh, en) => process.env.XHS_UI_LANG === 'en' ? en : zh;
 
 const appleScript = promisify(execFile);
 const site = 'https://www.xiaohongshu.com';
@@ -71,7 +72,7 @@ export async function openSafari(url, signal, mode = 'foreground') {
     }
   };
   const id = await run(['open', url, mode], false);
-  if (!/^\d+$/.test(id)) throw new Error('Safari 未返回监控窗口编号。');
+  if (!/^\d+$/.test(id)) throw new Error(ui('Safari 未返回监控窗口编号。', 'Safari did not return the monitoring window ID.'));
   return {
     navigate: value => run(['navigate', id, value]),
     url: () => run(['url', id]),
@@ -177,7 +178,7 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
   searchURL.searchParams.set('keyword', keyword);
   const pause = ms => delay(ms, undefined, { signal });
   signal?.throwIfAborted();
-  console.log('正在打开 Safari 监控窗口…');
+  console.log(ui('正在打开 Safari 监控窗口…', 'Opening the Safari monitoring window…'));
   const browser = await (test.open ?? openSafari)(searchURL.href, signal, presentation?.mode);
   const read = (kind, value = null) => browser.evaluate(
     `(${pageRead.toString()})(${JSON.stringify(kind)},${JSON.stringify(value)},${JSON.stringify(origins)})`,
@@ -211,16 +212,18 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     let state = await ready();
     if (!state || state.login || !isSearch(state.url)) {
       await setMode('foreground');
-      await ask('请在 Safari 监控窗口完成小红书登录或平台验证，然后点击「继续」。');
+      await ask(ui('请在 Safari 监控窗口完成小红书登录或平台验证，然后点击「继续」。',
+        'Sign in to Xiaohongshu or complete verification in the Safari monitoring window, then click Continue.'));
       await browser.navigate(searchURL.href);
       state = await ready();
     }
-    if (!state || state.login || !isSearch(state.url)) throw new Error('Safari 未进入指定关键词的搜索结果页，请检查登录、验证或网络。');
+    if (!state || state.login || !isSearch(state.url)) throw new Error(ui('Safari 未进入指定关键词的搜索结果页，请检查登录、验证或网络。',
+      'Safari did not reach the requested results. Check sign-in, verification, and network access.'));
 
     const toBottom = range.screens === 'bottom';
     const stopAtStart = toBottom && range.sort === '最新';
     const eligible = helpers.presetsCovering(range.start, new Date(), stopAtStart);
-    if (!eligible.length) throw new Error('目标开始日期超出网页「半年内」可覆盖的范围。');
+    if (!eligible.length) throw new Error(ui('目标开始日期超出网页「半年内」可覆盖的范围。', 'The start date is outside the past six months.'));
     const choose = async (kind, expression) => {
       await read('openFilter');
       return wait(() => read(kind, expression.source), 2500);
@@ -236,19 +239,24 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     if (!pageFilter) {
       await setMode('foreground');
       while (!pageFilter) {
-        const choice = await ask(`先在 Safari 应用「${range.sort}」及覆盖 ${range.start} 至 ${range.end} 的发布时间。应用后选择同名时间选项${eligible[0][0] === Infinity ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`);
-        if (!choice) throw new Error('尚未应用网页发布时间筛选。');
+        const sort = range.sort === '最新' ? 'Latest' : 'Most relevant';
+        const unrestricted = eligible[0][0] === Infinity;
+        const choice = await ask(ui(
+          `先在 Safari 应用「${range.sort}」及覆盖 ${range.start} 至 ${range.end} 的发布时间。应用后选择同名时间选项${unrestricted ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`,
+          `In Safari, apply ${sort} and a publication date filter covering ${range.start} to ${range.end}. Then choose the same publication time option below.${unrestricted ? ' Any time covers this range.' : ''} End the task if no option covers the date range.`,
+        ));
+        if (!choice) throw new Error(ui('尚未应用网页发布时间筛选。', 'No publication date filter was applied.'));
         if (eligible.some(([, expression]) => expression.test(choice))) pageFilter = `手动确认 · ${choice}`;
-        else console.log(`「${choice}」可能漏掉目标日期开头的笔记，请选择更宽的时间范围。`);
+        else console.log(ui(`「${choice}」可能漏掉目标日期开头的笔记，请选择更宽的时间范围。`, 'Choose a wider filter to cover the start of the requested range.'));
       }
     }
-    console.log(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。`);
+    console.log(ui(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。`, 'Publication date filter applied.'));
     await pause(1200);
     const cards = new Map();
     let prior = '', stable = 0;
     for (let screen = 1; toBottom || screen <= range.screens; screen++) {
       signal?.throwIfAborted();
-      if (!isSearch(await browser.url())) throw new Error('Safari 已离开目标关键词的搜索结果页。');
+      if (!isSearch(await browser.url())) throw new Error(ui('Safari 已离开目标关键词的搜索结果页。', 'Safari left the requested search results.'));
       const view = await read('cards');
       let olderDate;
       for (const card of view?.entries ?? []) {
@@ -264,9 +272,12 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
           cards.set(address.id, { ...previous, date });
         }
       }
-      console.log(`扫描「${keyword}」 · 第 ${screen}${toBottom ? '' : `/${range.screens}`} 屏 · 候选 ${cards.size} 条`);
+      const screenLabel = `${screen}${toBottom ? '' : `/${range.screens}`}`;
+      console.log(ui(`扫描「${keyword}」 · 第 ${screenLabel} 屏 · 候选 ${cards.size} 条`,
+        `Scanning “${keyword}” · Screen ${screenLabel} · ${cards.size} candidates`));
       if (olderDate) {
-        console.log(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`);
+        console.log(ui(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`,
+          `Found a note dated ${olderDate}, before ${range.start}. Finished this screen and stopped scrolling for “${keyword}”.`));
         break;
       }
       if (!toBottom && screen === range.screens) break;
@@ -279,7 +290,7 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     }
     if (!cards.size) {
       const current = await read('state');
-      if (!current?.empty || current.login) throw new Error('Safari 未读取到笔记，且未能确认网页显示无结果。');
+      if (!current?.empty || current.login) throw new Error(ui('Safari 未读取到笔记，且未能确认网页显示无结果。', 'Safari found no readable notes and could not verify an empty result.'));
     }
     const all = [...cards.entries()];
     const unknownCardDates = all.filter(([, card]) => !card.date).length;
@@ -297,7 +308,7 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
           const address = sameNote(value?.url, origins);
           return address?.id === id && (value.title || value.body) ? value : null;
         });
-        if (!detail) throw new Error('未打开目标笔记');
+        if (!detail) throw new Error(ui('未打开目标笔记', 'The note could not be opened.'));
         const direct = await wait(async () => {
           const opened = sameNote(await browser.url(), origins);
           return opened?.id === id && opened.url.pathname.startsWith('/explore/') ? opened.url.href : '';
@@ -307,9 +318,9 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
       } catch (error) {
         signal?.throwIfAborted();
         unreadable++;
-        console.log(`Safari 笔记读取失败：${error.message}`);
+        console.log(ui(`Safari 笔记读取失败：${error.message}`, `Could not read the note in Safari: ${error.message}`));
       }
-      console.log(`读笔记 ${notes.length + unreadable}/${matched.length}`);
+      console.log(ui(`读笔记 ${notes.length + unreadable}/${matched.length}`, `Reading notes ${notes.length + unreadable}/${matched.length}`));
     }
     return { notes, unreadable, candidates: cards.size, pageFilter, unknownCardDates,
       outsideRange: all.length - unknownCardDates - matched.length, opened: matched.length };

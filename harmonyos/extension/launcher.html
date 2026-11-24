@@ -3,17 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>小红书舆情监控</title>
-  <style>
-    body { width: 200px; margin: 0; padding: 16px; font: 14px system-ui, sans-serif; }
-    button { width: 100%; padding: 9px; border: 0; border-radius: 8px; color: white; background: #1260af; font: inherit; cursor: pointer; }
-    p { margin: 10px 0 0; color: #942d2d; }
-    p:empty { display: none; }
-  </style>
+  <title data-en="Xiaohongshu Monitor">小红书舆情监控</title>
+  <link rel="stylesheet" href="app.css">
 </head>
-<body>
-  <button id="open" type="button">打开监控工作台</button>
+<body class="launcher">
+  <button id="open" type="button" data-en="Open dashboard">打开监控工作台</button>
   <p id="error" role="alert"></p>
-  <script src="launcher.js"></script>
+  <script type="module" src="launcher.js"></script>
 </body>
 </html>

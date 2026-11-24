@@ -2,6 +2,7 @@ import {
   analysisInstructions, analysisSchema, summaryInstructions, summarySchema,
   validateAnalysis, validateSummary,
 } from './report-template.mjs';
+import { t } from './i18n.mjs';
 
 const providers = [
   { name: 'OpenAI', model: 'gpt-4o-mini', url: 'https://api.openai.com/v1/responses' },
@@ -71,9 +72,9 @@ function readText(provider, result) {
 // The key is kept in this call and never sent to the content scripts.
 async function requestReport({ provider, key, model, signal }, instructions, schema, data, maxTokens) {
   const config = providers.find(item => item.name === provider);
-  if (!config) throw new Error('不支持的 AI 服务商。');
+  if (!config) throw new Error(t('不支持的 AI 服务商。', 'Unsupported AI provider.'));
   const apiKey = key?.trim();
-  if (!apiKey) throw new Error('请输入所选服务商的 API 密钥。');
+  if (!apiKey) throw new Error(t('请输入所选服务商的 API 密钥。', 'Enter the API key for the selected provider.'));
   const input = JSON.stringify(data);
   const { headers, body } = makeRequest(config, apiKey, model?.trim() || config.model, input, instructions, schema, maxTokens);
   const controller = new AbortController();
@@ -93,7 +94,7 @@ async function requestReport({ provider, key, model, signal }, instructions, sch
     });
     if (!response.ok) throw new Error(`${provider} API HTTP ${response.status}`);
     const text = readText(provider, await response.json());
-    if (typeof text !== 'string' || !text.trim()) throw new Error(`${provider} 未返回完整文本。`);
+    if (typeof text !== 'string' || !text.trim()) throw new Error(t(`${provider} 未返回完整文本。`, `${provider} did not return a complete response.`));
     return text.trim();
   } finally {
     clearTimeout(timeout);

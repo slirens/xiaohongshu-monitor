@@ -1,0 +1,4 @@
+{
+  "name": { "message": "Xiaohongshu Monitor" },
+  "description": { "message": "Collect Xiaohongshu notes by keyword and date in Huawei Browser and export them to Excel." }
+}

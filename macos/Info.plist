@@ -4,10 +4,11 @@
 <key>CFBundleIdentifier</key><string>com.slirens.xiaohongshu-monitor</string>
 <key>CFBundleExecutable</key><string>XiaohongshuMonitor</string>
 <key>CFBundleName</key><string>Xiaohongshu Monitor</string>
-<key>CFBundleDisplayName</key><string>小红书舆情监控</string>
+<key>CFBundleDisplayName</key><string>Xiaohongshu Monitor</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0.0</string>
-<key>CFBundleVersion</key><string>1.0.0</string>
+<key>CFBundleShortVersionString</key><string>1.0.1</string>
+<key>CFBundleVersion</key><string>1.0.1</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
-<key>NSAppleEventsUsageDescription</key><string>本应用需要控制专用 Safari 窗口，以执行你启动的搜索和笔记采集。</string>
+<key>NSAppleEventsUsageDescription</key><string>This app needs to control a dedicated Safari window to run your searches and collect notes.</string>
 </dict></plist>

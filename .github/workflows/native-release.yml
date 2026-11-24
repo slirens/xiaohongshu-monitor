@@ -1,10 +1,10 @@
-name: Build and verify all v1.0.0 packages
+name: Build and verify v1.0.1 packages
 
 on:
   workflow_dispatch:
     inputs:
-      prepare_release:
-        description: Prepare a draft with all verified v1.0.0 packages
+      publish:
+        description: Publish v1.0.1 after all packages pass verification
         type: boolean
         default: false
 
@@ -19,25 +19,25 @@ jobs:
   windows:
     uses: ./.github/workflows/windows-setup.yml
     with:
-      version: '1.0.0'
+      version: '1.0.1'
 
   macos:
     uses: ./.github/workflows/macos-dmg.yml
     with:
-      version: '1.0.0'
+      version: '1.0.1'
 
   linux:
     uses: ./.github/workflows/linux.yml
     with:
-      version: '1.0.0'
+      version: '1.0.1'
 
   harmonyos:
     uses: ./.github/workflows/harmonyos.yml
     with:
-      version: '1.0.0'
+      version: '1.0.1'
 
-  prepare-release:
-    if: ${{ inputs.prepare_release && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
+  publish:
+    if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
     needs: [windows, macos, linux, harmonyos]
     runs-on: ubuntu-24.04
     permissions:
@@ -62,7 +62,7 @@ jobs:
         with:
           name: harmonyos-browser
           path: packages
-      - name: Attach all six verified packages to a release draft
+      - name: Publish all six verified packages
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -70,14 +70,14 @@ jobs:
           set -euo pipefail
           cd packages
           packages=(
-            xiaohongshu-monitor-v1.0.0-windows-x64-setup.exe
-            xiaohongshu-monitor-v1.0.0-windows-x86-setup.exe
-            xiaohongshu-monitor-v1.0.0-macos-arm64.dmg
-            xiaohongshu-monitor-v1.0.0-macos-x86_64.dmg
-            xiaohongshu-monitor-v1.0.0-linux-amd64.deb
-            xiaohongshu-monitor-v1.0.0-harmonyos-browser.zip
+            xiaohongshu-monitor-v1.0.1-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.0.1-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.0.1-macos-arm64.dmg
+            xiaohongshu-monitor-v1.0.1-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.0.1-linux-amd64.deb
+            xiaohongshu-monitor-v1.0.1-harmonyos-browser.zip
           )
           sha256sum "${packages[@]}" > SHA256SUMS.txt
-          gh release create "staging-v1.0.0-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${packages[@]}" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title 'v1.0.0' \
-            --notes-file ../RELEASE.md --draft
+          gh release create v1.0.1 "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.0.1' \
+            --notes-file ../RELEASE.md --latest

@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "小红书舆情监控",
-  "version": "1.0.0",
-  "description": "在华为浏览器中按关键词和日期收集笔记并导出 Excel。",
+  "name": "__MSG_name__",
+  "version": "1.0.1",
+  "description": "__MSG_description__",
+  "default_locale": "en",
   "action": {
-    "default_title": "小红书舆情监控",
+    "default_title": "__MSG_name__",
     "default_popup": "launcher.html"
   },
   "host_permissions": [

@@ -1,6 +1,7 @@
 import { parseDisplayedDate, presetsCovering } from './dates.mjs';
 import { ReportNote, KeywordReport } from './workbook.mjs';
 import { checkAbort } from './cancel.mjs';
+import { dateFilterCaption, t } from './i18n.mjs';
 
 const base = 'https://www.xiaohongshu.com';
 const hosts = [base, 'https://xiaohongshu.com'];
@@ -48,18 +49,18 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
   }, 12000);
   const stopAtStart = !range.screens && range.sort === '最新';
   const eligible = presetsCovering(range.start, new Date(), stopAtStart);
-  if (!eligible.length) throw new Error('目标日期超出网页发布时间筛选可覆盖的范围。');
+  if (!eligible.length) throw new Error(t('目标日期超出网页发布时间筛选可覆盖的范围。', 'The selected dates are outside the range supported by the website’s date filter.'));
 
-  progress(`正在搜索「${keyword}」`);
+  progress(t(`正在搜索「${keyword}」`, `Searching for “${keyword}”`));
   await browser.navigate(search.href);
   let found = await waitForResults();
   if (found?.login) {
-    await ask('请在采集标签页完成小红书登录或平台要求的验证，然后返回扩展页继续。');
+    await ask(t('请在采集标签页完成小红书登录或平台要求的验证，然后返回扩展页继续。', 'Sign in to Xiaohongshu or complete its verification in the collection tab, then return here to continue.'));
     checkAbort(signal);
     await browser.navigate(search.href);
     found = await waitForResults();
   }
-  if (!found || found.login || !isSearch(found.url)) throw new Error('未能进入目标搜索页，请检查登录和网页状态后重试。');
+  if (!found || found.login || !isSearch(found.url)) throw new Error(t('未能进入目标搜索页，请检查登录和网页状态后重试。', 'Could not open the requested search. Check that you are signed in and the page is available, then try again.'));
 
   const choose = async (kind, expression) => {
     await browser.evaluate('openFilter');
@@ -75,21 +76,22 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
   }
   if (!dateFilter) {
     const choices = eligible.map(([days]) => days === Infinity ? '不限' : days === 1 ? '一天内' : days === 7 ? '一周内' : '半年内');
-    const selected = await ask(`请在采集标签页应用「${range.sort}」排序及覆盖目标日期的发布时间，再返回并选择网页上的同名选项。`, choices);
+    const order = range.sort === '综合' ? 'Relevance (综合)' : 'Latest (最新)';
+    const selected = await ask(t(`请在采集标签页应用「${range.sort}」排序及覆盖目标日期的发布时间，再返回并选择网页上的同名选项。`, `In the collection tab, sort by ${order} and choose a publication date filter that covers the selected dates. Return here and select the same option.`), choices);
     checkAbort(signal);
-    if (!choices.includes(selected) || !isSearch(await browser.url())) throw new Error('网页时间筛选未确认。');
+    if (!choices.includes(selected) || !isSearch(await browser.url())) throw new Error(t('网页时间筛选未确认。', 'The website’s date filter was not confirmed.'));
     dateFilter = selected;
   }
-  progress(`网页发布时间 · ${dateFilter}`);
+  progress(t(`网页发布时间 · ${dateFilter}`, `Publication date · ${dateFilterCaption(dateFilter)}`));
   await sleep(1000);
 
   const cards = new Map();
   let previous = '', unchanged = 0;
   for (let screen = 1; !range.screens || screen <= range.screens; screen++) {
     checkAbort(signal);
-    if (!isSearch(await browser.url())) throw new Error('采集标签页已离开搜索结果。');
+    if (!isSearch(await browser.url())) throw new Error(t('采集标签页已离开搜索结果。', 'The collection tab left the search results.'));
     const view = await browser.evaluate('cards');
-    if (!view) throw new Error('未能读取搜索结果卡片。');
+    if (!view) throw new Error(t('未能读取搜索结果卡片。', 'Could not read the search result cards.'));
     let olderDate;
     for (const card of view.entries) {
       const note = noteAddress(card.href);
@@ -101,9 +103,9 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
       const href = !old || (!old.token && note.url.searchParams.has('xsec_token')) ? note.url.href : old.href;
       cards.set(note.id, { date, href, token: new URL(href).searchParams.has('xsec_token') });
     }
-    progress(`「${keyword}」第 ${screen} 屏 · ${cards.size} 条候选`);
+    progress(t(`「${keyword}」第 ${screen} 屏 · ${cards.size} 条候选`, `“${keyword}” · Screen ${screen} · ${cards.size} ${cards.size === 1 ? 'candidate' : 'candidates'}`));
     if (olderDate) {
-      progress(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`);
+      progress(t(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`, `Found a note dated ${olderDate}, before ${range.start}. Finished this screen and stopped scrolling for “${keyword}”.`));
       break;
     }
     if (screen === range.screens) break;
@@ -116,7 +118,7 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
   }
   if (!cards.size) {
     const current = await state();
-    if (!current?.empty || current.login) throw new Error('网页没有返回可读取的笔记。');
+    if (!current?.empty || current.login) throw new Error(t('网页没有返回可读取的笔记。', 'The website returned no notes that could be read.'));
   }
 
   const inRange = [...cards].filter(([, card]) => card.date && card.date >= range.start && card.date <= range.end);
@@ -141,9 +143,9 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
         notes.push(new ReportNote(note.title, note.body, url, date));
       }
     } else {
-      progress(`第 ${index + 1} 条笔记无法确认原文地址，已跳过。`);
+      progress(t(`第 ${index + 1} 条笔记无法确认原文地址，已跳过。`, `Skipped note ${index + 1} because its original link could not be confirmed.`));
     }
-    progress(`「${keyword}」已读取 ${index + 1}/${inRange.length} 条`);
+    progress(t(`「${keyword}」已读取 ${index + 1}/${inRange.length} 条`, `“${keyword}” · Read ${index + 1}/${inRange.length} notes`));
   }
   return new KeywordReport(keyword, notes);
 }

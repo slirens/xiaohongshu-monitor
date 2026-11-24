@@ -33,6 +33,9 @@ test "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist
 test "$(plutil -extract CFBundleVersion raw "$app/Contents/Info.plist")" = "$version"
 test "$(lipo -archs "$binary")" = "$arch"
 test "$(lipo -archs "$runtime/node")" = "$arch"
+test -f "$app/Contents/Resources/en.lproj/InfoPlist.strings"
+test -f "$app/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
+"$binary" --verify-localization
 
 fixture="$stage/notes.json"
 printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"

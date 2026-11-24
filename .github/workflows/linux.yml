@@ -60,7 +60,8 @@ jobs:
         run: |
           fixture="$RUNNER_TEMP/notes.json"
           printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
-          xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state"
+          LC_ALL=C.UTF-8 xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state-en"
+          LC_ALL=zh_CN.UTF-8 xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state-zh"
       - name: Exercise real Chrome against local search and login fixtures
         run: xvfb-run -a /opt/xiaohongshu-monitor/runtime/node linux/verify-browser.cjs /opt/xiaohongshu-monitor
       - name: Uninstall and verify clean removal

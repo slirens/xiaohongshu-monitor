@@ -9,6 +9,13 @@ import { execFileSync } from 'node:child_process';
 import { Writable } from 'node:stream';
 
 const root = process.env.XHS_MONITOR_HOME || dirname(fileURLToPath(import.meta.url));
+const english = process.env.XHS_UI_LANG === 'en';
+const ui = (zh, en) => english ? en : zh;
+const sortName = sort => ui(sort, sort === '最新' ? 'Latest' : 'Most relevant');
+const timeName = label => !english ? label : ({
+  '不限': 'Any time', '全部': 'Any time', '任意时间': 'Any time',
+  '一天内': 'Past day', '一周内': 'Past week', '半年内': 'Past six months',
+})[label] ?? label;
 const require = createRequire(join(dirname(process.execPath), '_resolve.cjs'));
 const sentiments = ['正面', '中性', '负面', '混合', '无法判断'];
 const chinaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' });
@@ -22,9 +29,7 @@ function reportTemplateRuntime() {
     const packagedWorker = process.platform === 'win32' &&
       /^xhs-monitor-[a-f0-9]{32}\.mjs$/.test(basename(fileURLToPath(import.meta.url)));
     const source = !packagedWorker && existsSync(sibling) ? sibling : runtime;
-    if (!existsSync(source)) throw new Error(process.platform === 'linux'
-      ? '缺少报告模板规则组件，请重新安装软件包。'
-      : '缺少报告模板规则组件，请重新安装程序或完整解压发行包。');
+    if (!existsSync(source)) throw new Error(ui('缺少报告模板规则组件，请重新安装程序。', 'Report template components are missing. Reinstall the app.'));
     reportTemplateModule = import(source.href);
   }
   return reportTemplateModule;
@@ -138,7 +143,7 @@ async function applySearchFilters(page, { start, end, sort, screens }, ask) {
   const sortOption = panel.getByText(sort, { exact: true }).filter({ visible: true }).first();
   const timeOptions = page.locator('xpath=//*[preceding::*[normalize-space(text())="发布时间" or normalize-space(text())="排序依据" or normalize-space(text())="笔记类型" or normalize-space(text())="搜索范围" or normalize-space(text())="位置距离"][1][normalize-space(text())="发布时间"]]');
   const eligible = presetsCovering(start, new Date(), sort === '最新' && screens === 'bottom');
-  if (!eligible.length) throw new Error('目标开始日期超出网页「半年内」可覆盖的范围，未读取笔记。');
+  if (!eligible.length) throw new Error(ui('目标开始日期超出网页「半年内」可覆盖的范围，未读取笔记。', 'The start date is outside the past six months. No notes were read.'));
   const unrestricted = eligible[0][0] === Infinity;
   let stage = '打开筛选面板';
   let selected;
@@ -182,19 +187,22 @@ async function applySearchFilters(page, { start, end, sort, screens }, ask) {
       break;
     }
   } catch (error) {
-    console.log(`网页筛选在「${stage}」阶段中断：${error.message.split('\n')[0]}`);
+    console.log(ui(`网页筛选在「${stage}」阶段中断：${error.message.split('\n')[0]}`, `Could not apply the search filters: ${error.message.split('\n')[0]}`));
   }
   if (!selected) {
-    console.log(`请在浏览器的筛选面板里选择「${sort}」排序及能覆盖 ${start} 至 ${end} 的发布时间范围。`);
+    console.log(ui(`请在浏览器的筛选面板里选择「${sort}」排序及能覆盖 ${start} 至 ${end} 的发布时间范围。`, `Set sorting to ${sortName(sort)} and choose a publication range covering ${start} to ${end}.`));
     while (true) {
-      const confirmed = await ask(`先在浏览器应用「${sort}」及覆盖 ${start} 至 ${end} 的发布时间。应用后选择同名时间选项${unrestricted ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`);
+      const confirmed = await ask(ui(
+        `先在浏览器应用「${sort}」及覆盖 ${start} 至 ${end} 的发布时间。应用后选择同名时间选项${unrestricted ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`,
+        `In the browser, apply ${sortName(sort)} and a publication date filter covering ${start} to ${end}. Then choose the same publication time option below.${unrestricted ? ' Any time covers this range.' : ''} End the task if no option covers the date range.`,
+      ));
       if (!confirmed || (!unrestricted && /^(不限|全部|任意时间)$/.test(confirmed))) {
-        throw new Error('尚未应用能覆盖目标日期的网页时间筛选，未读取笔记。');
+        throw new Error(ui('尚未应用能覆盖目标日期的网页时间筛选，未读取笔记。', 'No publication date filter covering the requested range was applied.'));
       }
       if (eligible.some(([, label]) => label.test(confirmed))) {
         return `手动确认 · ${confirmed}`;
       }
-      console.log(`「${confirmed}」可能漏掉目标日期开头的笔记，请改选更宽的时间范围。`);
+      console.log(ui(`「${confirmed}」可能漏掉目标日期开头的笔记，请改选更宽的时间范围。`, `“${timeName(confirmed)}” may miss notes at the start of the range. Choose a wider filter.`));
     }
   }
   // Leave the filter popover and allow the filtered results to refresh.
@@ -219,7 +227,7 @@ function windowsBrowser() {
     progId = result.match(/\bProgId\s+REG_SZ\s+(\S+)/i)?.[1] ?? '';
   } catch {}
   if (!/^(?:ChromeHTML|MSEdgeHTM)/i.test(progId)) {
-    console.log('默认浏览器未识别为 Chrome 或 Edge，正在查找可用的浏览器。');
+    console.log(ui('默认浏览器未识别为 Chrome 或 Edge，正在查找可用的浏览器。', 'Looking for an available Chromium browser.'));
   }
   return selectBrowser(progId);
 }
@@ -265,7 +273,8 @@ async function collect(keyword, range, ask, background = false) {
     browser = candidate;
     marker = join(root, browser.profile, '.search-ready');
     headless = background && !range.presentation && existsSync(marker);
-    console.log(headless ? `正在后台启动 ${browser.name}…` : `正在打开专用 ${browser.name} 窗口…`);
+    console.log(headless ? ui(`正在后台启动 ${browser.name}…`, `Starting ${browser.name} in the background…`) :
+      ui(`正在打开专用 ${browser.name} 窗口…`, `Opening a dedicated ${browser.name} window…`));
     try {
       context = await chromium.launchPersistentContext(join(root, browser.profile), {
         channel: browser.channel, executablePath: browser.executablePath, headless, viewport: null, timeout: 20000, env: browserEnv,
@@ -274,12 +283,14 @@ async function collect(keyword, range, ask, background = false) {
       break;
     } catch (error) {
       const details = linux ? error.message.match(/(?:No usable sandbox[^\n]*|Missing X server or \$DISPLAY[^\n]*|error while loading shared libraries:[^\n]*)/)?.[0] : '';
-      console.log(`${browser.name} 启动失败：${details || error.message.split('\n')[0]}`);
+      console.log(ui(`${browser.name} 启动失败：${details || error.message.split('\n')[0]}`, `Could not start ${browser.name}: ${error.message.split('\n')[0]}`));
     }
   }
   if (!context) throw new Error(linux
-    ? '没有可启动的浏览器。请安装 Google Chrome、Microsoft Edge 或系统 Chromium，再用普通用户在图形桌面启动程序。'
-    : '没有可启动的浏览器。请安装适用于此系统的 Microsoft Edge 或 Google Chrome，关闭此前运行的监控程序后重试。');
+    ? ui('没有可启动的浏览器。请安装 Google Chrome、Microsoft Edge 或系统 Chromium，再用普通用户在图形桌面启动程序。',
+        'Could not launch a browser. Install Chrome, Edge, or Chromium, then run the app as a regular desktop user.')
+    : ui('没有可启动的浏览器。请安装适用于此系统的 Microsoft Edge 或 Google Chrome，关闭此前运行的监控程序后重试。',
+        'Could not launch a browser. Install Chrome or Edge, close earlier monitoring windows, and try again.'));
   const abortBrowser = () => { void context.close().catch(() => {}); };
   let detachPresentation;
   signal?.addEventListener('abort', abortBrowser, { once: true });
@@ -300,7 +311,7 @@ async function collect(keyword, range, ask, background = false) {
           if (range.presentation.bounds) {
             await session.send('Browser.setWindowBounds', { windowId, bounds: range.presentation.bounds });
           }
-        }).catch(error => console.log(`未能调整浏览器窗口：${error.message.split('\n')[0]}`));
+        }).catch(error => console.log(ui(`未能调整浏览器窗口：${error.message.split('\n')[0]}`, `Could not resize the browser: ${error.message.split('\n')[0]}`)));
         return queue;
       };
       range.presentation.apply = setWindow;
@@ -321,31 +332,34 @@ async function collect(keyword, range, ask, background = false) {
         search.getByText(/^(?:筛选|已筛选)$/).first().waitFor({ state: 'visible', timeout: 12000 }),
       ]).catch(() => {});
     };
-    console.log(`正在打开「${keyword}」的搜索结果页…`);
+    console.log(ui(`正在打开「${keyword}」的搜索结果页…`, `Opening search results for “${keyword}”…`));
     try {
       await openResults();
     } catch (error) {
       if (error.name !== 'TimeoutError') throw error;
-      console.log('搜索结果页连接超时，正在重试一次…');
+      console.log(ui('搜索结果页连接超时，正在重试一次…', 'The search page took too long to load. Retrying…'));
       await openResults();
     }
     if (!verifySearch(new URL(search.url())) || await login.isVisible()) {
-      if (headless) throw new BrowserInteractionRequired('小红书需要登录或验证');
+      if (headless) throw new BrowserInteractionRequired(ui('小红书需要登录或验证', 'Xiaohongshu requires sign-in or verification'));
       await range.presentation?.apply?.('foreground');
-      await ask(`尚未进入搜索结果页。请在 ${browser.name} 完成扫码登录或网页验证，再回到程序点击继续：`);
+      await ask(ui(`尚未进入搜索结果页。请在 ${browser.name} 完成扫码登录或网页验证，再回到程序点击继续：`,
+        `Sign in or complete the site's verification in ${browser.name}, then return to the app and click Continue.`));
       await openResults();
     }
-    if (await login.isVisible()) throw new Error('小红书仍显示登录或验证提示，请确认扫码完成后再试。');
-    if (!verifySearch(new URL(search.url()))) throw new Error(`未进入指定关键词的搜索结果页（当前页面：${new URL(search.url()).pathname}）。`);
-    console.log(`已打开小红书搜索结果：${keyword}`);
+    if (await login.isVisible()) throw new Error(ui('小红书仍显示登录或验证提示，请确认扫码完成后再试。', 'Xiaohongshu still requires sign-in or verification. Complete it and try again.'));
+    if (!verifySearch(new URL(search.url()))) throw new Error(ui(`未进入指定关键词的搜索结果页（当前页面：${new URL(search.url()).pathname}）。`,
+      `The browser did not reach the requested search results (${new URL(search.url()).pathname}).`));
+    console.log(ui(`已打开小红书搜索结果：${keyword}`, `Opened Xiaohongshu results for “${keyword}”.`));
     const filterAsk = headless ? async () => {
-      throw new BrowserInteractionRequired('网页筛选需要手动确认');
+      throw new BrowserInteractionRequired(ui('网页筛选需要手动确认', 'The website filters need manual confirmation'));
     } : async prompt => {
       await range.presentation?.apply?.('foreground');
       return ask(prompt);
     };
     const pageFilter = await applySearchFilters(search, range, filterAsk);
-    console.log(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。开始检查筛选后的结果。`);
+    console.log(ui(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。开始检查筛选后的结果。`,
+      `Publication filter: ${timeName(pageFilter)} · Sort: ${sortName(range.sort)}. Checking results.`));
     await new Promise(resolve => setTimeout(resolve, 1200));
     const links = new Map();
     const toBottom = range.screens === 'bottom';
@@ -355,7 +369,7 @@ async function collect(keyword, range, ask, background = false) {
     for (let screen = 1; toBottom || screen <= range.screens; screen++) {
       signal?.throwIfAborted();
       if (!verifySearch(new URL(search.url()))) {
-        throw new Error('小红书页面已离开指定关键词的搜索结果，请重新运行。');
+        throw new Error(ui('小红书页面已离开指定关键词的搜索结果，请重新运行。', 'The browser left the requested search results. Run the task again.'));
       }
       const visibleLinks = await search.locator('a[href]').evaluateAll(anchors =>
         anchors.filter(anchor => {
@@ -381,9 +395,12 @@ async function collect(keyword, range, ask, background = false) {
           date: date ?? existing?.date,
         });
       }
-      console.log(`扫描「${keyword}」 · 第 ${screen}${toBottom ? '' : `/${range.screens}`} 屏 · 候选 ${links.size} 条`);
+      const screenLabel = `${screen}${toBottom ? '' : `/${range.screens}`}`;
+      console.log(ui(`扫描「${keyword}」 · 第 ${screenLabel} 屏 · 候选 ${links.size} 条`,
+        `Scanning “${keyword}” · Screen ${screenLabel} · ${links.size} candidates`));
       if (olderDate) {
-        console.log(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`);
+        console.log(ui(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`,
+          `Found a note dated ${olderDate}, before ${range.start}. Finished this screen and stopped scrolling for “${keyword}”.`));
         break;
       }
       if (!toBottom && screen === range.screens) break;
@@ -402,11 +419,11 @@ async function collect(keyword, range, ask, background = false) {
       const empty = search.getByText(/^(?:没有找到相关笔记|没有找到相关内容|未找到相关笔记|未找到相关内容|暂无相关笔记|暂无搜索结果|没有搜索结果|暂无相关内容)[。！!]?$/)
         .filter({ visible: true }).first();
       if (await empty.isVisible() && !await login.isVisible()) {
-        console.log('网页明确显示无相关结果，本关键词以 0 条记录完成。');
+        console.log(ui('网页明确显示无相关结果，本关键词以 0 条记录完成。', 'The site reported no results. Finished this keyword with 0 notes.'));
         return { notes: [], unreadable: 0, candidates: 0, pageFilter, unknownCardDates: 0, outsideRange: 0, opened: 0 };
       }
-      if (headless) throw new BrowserInteractionRequired('后台页面未显示可读取的搜索结果');
-      throw new Error('未读到搜索结果。请检查浏览器中的登录、验证或搜索结果，也可使用 JSON 导入。');
+      if (headless) throw new BrowserInteractionRequired(ui('后台页面未显示可读取的搜索结果', 'No readable results appeared in the background'));
+      throw new Error(ui('未读到搜索结果。请检查浏览器中的登录、验证或搜索结果，也可使用 JSON 导入。', 'No search results could be read. Check the browser sign-in, verification, or search results.'));
     }
     await writeFile(marker, '', { flag: 'a' });
     if (!headless && range.background && !range.presentation) {
@@ -419,14 +436,15 @@ async function collect(keyword, range, ask, background = false) {
           await session.detach();
         }
       } catch (error) {
-        console.log(`未能最小化浏览器：${error.message.split('\n')[0]}`);
+        console.log(ui(`未能最小化浏览器：${error.message.split('\n')[0]}`, `Could not minimize the browser: ${error.message.split('\n')[0]}`));
       }
     }
     const candidates = [...links.values()];
     const inRange = candidates.filter(({ date }) => date && date >= range.start && date <= range.end);
     const unknownCardDates = candidates.filter(({ date }) => !date).length;
     const outsideRange = candidates.length - inRange.length - unknownCardDates;
-    console.log(`搜索卡片：日期命中 ${inRange.length} 条，范围外跳过 ${outsideRange} 条，未显示可识别日期跳过 ${unknownCardDates} 条。`);
+    console.log(ui(`搜索卡片：日期命中 ${inRange.length} 条，范围外跳过 ${outsideRange} 条，未显示可识别日期跳过 ${unknownCardDates} 条。`,
+      `Search cards: ${inRange.length} in range, ${outsideRange} outside the range, ${unknownCardDates} without a recognizable date.`));
     const page = inRange.length ? await context.newPage() : null;
     const notes = [];
     let unreadable = 0;
@@ -441,20 +459,20 @@ async function collect(keyword, range, ask, background = false) {
         const date = parseDisplayedDate(dateLabel);
         const original = xhsNoteAddress(url);
         const address = await waitForNoteAddress(page, original.id);
-        if (!address) console.log(`笔记 ${original.id} 未确认 /explore/ 详情地址，原文地址留空。`);
+        if (!address) console.log(ui(`笔记 ${original.id} 未确认 /explore/ 详情地址，原文地址留空。`, `The link could not be confirmed for note ${original.id}. The link cell will be blank.`));
         notes.push({ id: original.id, title: title.join(' ').trim(), body: body.trim(), date, dateLabel, url: address });
       } catch {
         unreadable++;
       }
-      console.log(`读笔记 ${notes.length + unreadable}/${inRange.length}`);
+      console.log(ui(`读笔记 ${notes.length + unreadable}/${inRange.length}`, `Reading notes ${notes.length + unreadable}/${inRange.length}`));
     }
     return { notes, unreadable, candidates: links.size, pageFilter, unknownCardDates, outsideRange, opened: inRange.length };
   } catch (error) {
     signal?.throwIfAborted();
-    console.error(`小红书取数中断：${error.message}`);
+    console.error(ui(`小红书取数中断：${error.message}`, `Xiaohongshu collection stopped: ${error.message}`));
     if (!headless && context.pages().some(page => !page.isClosed())) {
       await range.presentation?.apply?.('foreground');
-      await ask('浏览器窗口会保留供排查。确认页面状态后按回车关闭：');
+      await ask(ui('浏览器窗口会保留供排查。确认页面状态后按回车关闭：', 'Check the browser window, then click Continue to close it.'));
     }
     throw error;
   } finally {
@@ -476,7 +494,7 @@ const aiProviders = {
 
 function aiConfig(provider, model, endpoint) {
   provider ||= 'OpenAI';
-  if (!Object.hasOwn(aiProviders, provider)) throw new Error('不支持的 AI 服务商。');
+  if (!Object.hasOwn(aiProviders, provider)) throw new Error(ui('不支持的 AI 服务商。', 'Unsupported AI provider.'));
   const preset = aiProviders[provider];
   let url = preset.url;
   if (provider === 'Qwen' && endpoint) {
@@ -484,7 +502,7 @@ function aiConfig(provider, model, endpoint) {
     const official = /^(?:dashscope(?:-intl|-us)?\.aliyuncs\.com|[a-z0-9-]+\.(?:cn-beijing|us-east-1|ap-southeast-1|ap-northeast-1)\.maas\.aliyuncs\.com)$/i;
     if (base.protocol !== 'https:' || !official.test(base.hostname) || base.port || base.username || base.password ||
         base.search || base.hash || !/^\/(?:compatible-mode\/v1)(?:\/chat\/completions)?\/?$/.test(base.pathname)) {
-      throw new Error('Qwen 接口地址须为阿里云百炼控制台提供的 HTTPS 兼容接口。');
+      throw new Error(ui('Qwen 接口地址须为阿里云百炼控制台提供的 HTTPS 兼容接口。', 'Use the HTTPS-compatible Qwen endpoint from the Model Studio console.'));
     }
     url = base.origin + '/compatible-mode/v1/chat/completions';
   }
@@ -539,7 +557,7 @@ async function requestAi(config, apiKey, instructions, data, schema, signal, sch
     : provider === 'Claude'
       ? (result.stop_reason !== 'max_tokens' && result.content?.filter(item => item.type === 'text').map(item => item.text).join('\n'))
       : (result.choices?.[0]?.finish_reason !== 'length' && result.choices?.[0]?.message?.content);
-  if (typeof text !== 'string' || !text.trim()) throw new Error(`${provider} 未返回完整文本`);
+  if (typeof text !== 'string' || !text.trim()) throw new Error(ui(`${provider} 未返回完整文本`, `${provider} returned no complete text.`));
   return text.trim();
 }
 
@@ -648,10 +666,10 @@ async function exportReport(path, info, notes, reports = [{ info, notes }], temp
 async function loadReportTemplate(path) {
   const rules = await reportTemplateRuntime();
   if (!path) return rules.parseReportTemplate();
-  if (!/\.md$/i.test(path)) throw new Error('报告模板请选择 .md 文件。');
-  if ((await stat(path)).size > 48003) throw new Error('报告模板不能超过 12,000 个字符。');
+  if (!/\.md$/i.test(path)) throw new Error(ui('报告模板请选择 .md 文件。', 'Choose a Markdown (.md) report template.'));
+  if ((await stat(path)).size > 48003) throw new Error(ui('报告模板不能超过 12,000 个字符。', 'A report template must be 12,000 characters or fewer.'));
   const markdown = await readFile(path, 'utf8');
-  if (!markdown.trim()) throw new Error('报告模板文件为空。');
+  if (!markdown.trim()) throw new Error(ui('报告模板文件为空。', 'The report template is empty.'));
   return rules.parseReportTemplate(markdown, path.split(/[\\/]/).at(-1));
 }
 
@@ -707,7 +725,7 @@ async function main() {
     if (process.argv.includes('--desktop')) {
       const cancellation = new AbortController();
       rl.on('line', line => {
-        if (line === 'UI_CANCEL') cancellation.abort(new Error('任务已停止。'));
+        if (line === 'UI_CANCEL') cancellation.abort(new Error(ui('任务已停止。', 'Task stopped.')));
       });
       const request = JSON.parse(await ask(''));
       const presentation = { mode: 'foreground', bounds: request.browserBounds, apply: null };
@@ -727,7 +745,7 @@ async function main() {
           answer = resolve;
           console.log(`UI_ASK ${JSON.stringify(prompt)}`);
         });
-        if (response === 'UI_CANCEL') cancellation.abort(new Error('任务已停止。'));
+        if (response === 'UI_CANCEL') cancellation.abort(new Error(ui('任务已停止。', 'Task stopped.')));
         cancellation.signal.throwIfAborted();
         return JSON.parse(response);
       };
@@ -768,10 +786,10 @@ async function runBatch(request, ask) {
     if (!request.source && process.platform !== 'darwin') require('playwright');
   } catch (error) {
     const recovery = process.platform === 'linux' ? '请重新安装软件包' : '请重新安装程序或完整解压发行包';
-    throw new Error(`运行组件无法加载，${recovery}（${error.code ?? '加载错误'}）。`);
+    throw new Error(ui(`运行组件无法加载，${recovery}（${error.code ?? '加载错误'}）。`, `Runtime components could not load (${error.code ?? 'load error'}). Reinstall the app.`));
   }
   const terms = request.keyword.trim().split(/\s+/u).filter(Boolean);
-  if (!terms.length) throw new Error('请输入至少一个关键词。');
+  if (!terms.length) throw new Error(ui('请输入至少一个关键词。', 'Enter at least one keyword.'));
   let failures = 0;
   const reports = [];
   if (request.apiKey) request.config = aiConfig(request.provider, request.model, request.endpoint?.trim());
@@ -779,7 +797,7 @@ async function runBatch(request, ask) {
   const template = request.background || templatePath ? await loadReportTemplate(templatePath) : null;
   for (const [index, keyword] of terms.entries()) {
     request.signal?.throwIfAborted();
-    console.log(`开始关键词 ${index + 1}/${terms.length}：${keyword}`);
+    console.log(ui(`开始关键词 ${index + 1}/${terms.length}：${keyword}`, `Starting keyword ${index + 1}/${terms.length}: ${keyword}`));
     let result = '完成';
     try {
       reports.push(await runReport({ ...request, keyword, template }, ask));
@@ -789,9 +807,10 @@ async function runBatch(request, ask) {
       failures++;
       result = '失败';
       reports.push({ info: { 关键词: keyword, 处理状态: '失败' }, notes: [] });
-      console.error(`关键词「${keyword}」失败：${error.message}`);
+      console.error(ui(`关键词「${keyword}」失败：${error.message}`, `Keyword “${keyword}” failed: ${error.message}`));
     }
-    const progress = `${index + 1}/${terms.length} 已处理 · 「${keyword}」${result}`;
+    const progress = ui(`${index + 1}/${terms.length} 已处理 · 「${keyword}」${result}`,
+      `${index + 1}/${terms.length} processed · “${keyword}” ${result === '完成' ? 'completed' : 'failed'}`);
     console.log(request.background ? `UI_PROGRESS ${progress}` : progress);
   }
   if (failures < terms.length) {
@@ -804,7 +823,7 @@ async function runBatch(request, ask) {
     let summaryFailed = false;
     let summaryResult;
     if (template?.sheets.some(sheet => sheet.kind === 'summary')) {
-      if (request.apiKey) console.log('分析 报告综合总结…');
+      if (request.apiKey) console.log(ui('分析 报告综合总结…', 'Analyzing the report summary…'));
       try {
         summaryResult = await summarizeTemplate(template, request, reports);
       } catch (error) {
@@ -814,30 +833,32 @@ async function runBatch(request, ask) {
       }
     }
     request.signal?.throwIfAborted();
-    console.log('正在生成 Excel…');
+    console.log(ui('正在生成 Excel…', 'Generating Excel…'));
     await exportReport(path, reports[0].info, reports[0].notes, reports, template, request.signal, summaryResult);
-    console.log(`已生成 Excel：${path}`);
+    console.log(ui(`已生成 Excel：${path}`, `Excel report: ${path}`));
     if (request.apiKey) {
       const incomplete = template && !template.fields.length ? 0 :
         reports.reduce((count, entry) => count + entry.notes.filter(note => !note.analysis).length, 0);
       if (incomplete || summaryFailed) {
-        const warning = [incomplete ? `${incomplete} 条笔记分析未完成` : '', summaryFailed ? 'AI 综合总结失败' : ''].filter(Boolean).join(' · ');
+        const warning = [incomplete ? ui(`${incomplete} 条笔记分析未完成`, `Analysis incomplete for ${incomplete} notes`) : '',
+          summaryFailed ? ui('AI 综合总结失败', 'AI report summary could not be generated') : ''].filter(Boolean).join(' · ');
         console.log(request.background ? `UI_ANALYSIS_WARNING ${warning}` : warning);
       }
     }
   }
-  if (failures) throw new Error(`${terms.length - failures}/${terms.length} 个关键词成功生成报告，${failures} 个失败。`);
+  if (failures) throw new Error(ui(`${terms.length - failures}/${terms.length} 个关键词成功生成报告，${failures} 个失败。`,
+    `${terms.length - failures}/${terms.length} keywords exported, ${failures} failed.`));
 }
 
 async function runReport({ keyword, start, end, source, sort, apiKey, config, screens = 4, background = false, presentation, signal, template }, ask) {
     signal?.throwIfAborted();
-    if (!keyword || !validDate(start) || !validDate(end) || start > end) throw new Error('请输入关键词及有效的起止日期。');
+    if (!keyword || !validDate(start) || !validDate(end) || start > end) throw new Error(ui('请输入关键词及有效的起止日期。', 'Enter keywords and a valid date range.'));
     let data;
     if (source) {
       const notes = JSON.parse((await readFile(source, 'utf8')).replace(/^\uFEFF/, ''));
       if (!Array.isArray(notes) || !notes.every(note => note && typeof note.title === 'string' &&
         typeof note.body === 'string' && typeof note.date === 'string' && (note.url == null || typeof note.url === 'string'))) {
-        throw new Error('JSON 须为笔记数组，每条包含字符串 title、body、date，可选 url。');
+        throw new Error(ui('JSON 须为笔记数组，每条包含字符串 title、body、date，可选 url。', 'JSON must contain an array of notes with title, body, date, and an optional URL.'));
       }
       data = { notes, candidates: notes.length, unreadable: 0 };
     } else if (process.platform === 'darwin') {
@@ -850,9 +871,10 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
         data = await collect(keyword, range, ask, background);
       } catch (error) {
         if (!(error instanceof BrowserInteractionRequired)) throw error;
-        console.log(`后台采集暂停：${error.message}。`);
-        if (await ask('后台采集需要打开浏览器处理网页。点击「打开浏览器」继续，或点击「结束」停止任务。') !== '继续') {
-          throw new TaskEnded('已结束任务。');
+        console.log(ui(`后台采集暂停：${error.message}。`, `Background collection paused: ${error.message}.`));
+        if (await ask(ui('后台采集需要打开浏览器处理网页。点击「打开浏览器」继续，或点击「结束」停止任务。',
+          'Background collection needs a browser window. Open the browser to continue, or end the task.')) !== '继续') {
+          throw new TaskEnded(ui('已结束任务。', 'Task ended.'));
         }
         data = await collect(keyword, range, ask);
       }
@@ -879,7 +901,8 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
         note.error = error.message;
         if (/HTTP (401|403|404|429)/.test(error.message)) apiBlocked = error.message;
       }
-      console.log(`分析 ${index + 1}/${matched.length}${note.error ? ` · ${note.error}` : ''}`);
+      console.log(ui(`分析 ${index + 1}/${matched.length}${note.error ? ` · ${note.error}` : ''}`,
+        `Analyzing ${index + 1}/${matched.length}${note.error ? ` · ${note.error}` : ''}`));
     }
     return { info: {
       关键词: keyword, 开始日期: start, 结束日期: end, 时区: 'Asia/Shanghai',
@@ -896,7 +919,7 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
 export { datePattern, timePresets, validDate, selectNotes, exportReport, analyse, parseDisplayedDate, presetsCovering, applySearchFilters, selectBrowser, aiConfig, requestAi };
 if (import.meta.main ?? (process.argv[1] === fileURLToPath(import.meta.url))) {
   main().catch(error => {
-    console.error(`运行失败：${error.message}`);
+    console.error(ui(`运行失败：${error.message}`, `Task failed: ${error.message}`));
     process.exitCode = 1;
   });
 }

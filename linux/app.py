@@ -12,19 +12,45 @@ from threading import Thread
 from time import monotonic
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from tkinter import font as tkfont
 
 
 APP_ROOT = Path(__file__).resolve().parent
-APP_NAME = "小红书舆情监控"
 PROVIDERS = ("OpenAI", "Claude", "Gemini", "DeepSeek", "Kimi", "GLM", "Qwen")
-BOTTOM = "下拉到底"
-BUILTIN = "使用内置模板"
-REPORT_PREFIX = "已生成 Excel："
-TIME_CHOICES = ("一天内", "一周内", "半年内")
+REPORT_PREFIXES = ("已生成 Excel：", "Excel report: ")
 SHANGHAI = timezone(timedelta(hours=8))
 PROGRESS_LINES = (
     "开始关键词 ", "正在打开", "正在后台启动", "扫描「", "读笔记 ", "分析 ", "正在生成 Excel",
+    "Starting keyword ", "Opening ", "Starting browser ", "Scanning ", "Reading note ",
+    "Analyzing ", "Generating Excel",
 )
+SURFACE, SIDEBAR, FIELD = "#fafcfe", "#e9f2fb", "#f3f7fb"
+INK, MUTED, EDGE = "#243248", "#54637a", "#d6e0ee"
+ACCENT, FOCUS, HALO = "#235bc2", "#4474cb", "#e2ebfa"
+
+
+def system_language(environment):
+    name = next((environment.get(key) for key in ("LC_ALL", "LC_MESSAGES", "LANG") if environment.get(key)), "")
+    return "zh-CN" if re.split(r"[_\-.@]", name.lower(), maxsplit=1)[0] == "zh" else "en"
+
+
+UI_LANG = system_language(os.environ)
+
+
+def t(chinese, english):
+    return chinese if UI_LANG == "zh-CN" else english
+
+
+APP_NAME = t("小红书舆情监控", "Xiaohongshu Monitor")
+BOTTOM = t("下拉到底", "Scroll to bottom")
+BUILTIN = t("使用内置模板", "Built-in template")
+SORT_OPTIONS = {t("最新", "Latest"): "最新", t("综合", "Relevance"): "综合"}
+TIME_CHOICES = {
+    t("一天内", "Past day · 一天内"): "一天内",
+    t("一周内", "Past week · 一周内"): "一周内",
+    t("半年内", "Past six months · 半年内"): "半年内",
+}
+ANY_TIME = t("不限", "Any time · 不限")
 
 
 def data_home():
@@ -43,7 +69,7 @@ def date_value(value):
 class Worker:
     def __init__(self, home, request, key):
         self.events = Queue()
-        env = {**os.environ, "XHS_MONITOR_HOME": str(home)}
+        env = {**os.environ, "XHS_MONITOR_HOME": str(home), "XHS_UI_LANG": UI_LANG}
         env.pop("OPENAI_API_KEY", None)
         env.pop("XHS_AI_KEY", None)
         if key:
@@ -100,8 +126,8 @@ class Monitor:
         self.warning = ""
         self.last_progress = ""
         self.window.title(APP_NAME)
-        self.window.geometry("660x590")
-        self.window.minsize(545, 455)
+        self.window.geometry("1000x620")
+        self.window.minsize(735, 505)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.window.bind("<Map>", self.restore)
         self.build_view()
@@ -110,95 +136,252 @@ class Monitor:
         group = ttk.Frame(parent, style="Card.TFrame")
         group.grid(row=row, column=column, sticky="ew", padx=(0, 8) if column == 0 else (8, 0), pady=(0, 12))
         ttk.Label(group, text=label, style="Card.TLabel").pack(anchor="w", pady=(0, 5))
-        entry = ttk.Entry(group, textvariable=value, show="•" if secret else "")
-        entry.pack(fill="x", ipady=5)
+        entry = ttk.Entry(group, textvariable=value, show="•" if secret else "", cursor="xterm")
+        entry.pack(fill="x")
         return group
 
     def build_view(self):
         theme = ttk.Style(self.window)
         theme.theme_use("clam")
-        theme.configure("TFrame", background="#f3f5f8")
-        theme.configure("TLabel", background="#f3f5f8", foreground="#17212c")
-        theme.configure("Title.TLabel", font=("TkDefaultFont", 20, "bold"))
-        theme.configure("Muted.TLabel", foreground="#526477")
-        theme.configure("Card.TFrame", background="white")
-        theme.configure("Card.TLabel", background="white")
-        theme.configure("TButton", padding=(10, 7))
-        theme.configure("Primary.TButton", foreground="white", background="#0768e7", borderwidth=0)
-        theme.map("Primary.TButton", background=[("disabled", "#516982"), ("active", "#0057c7")])
-        theme.configure("TEntry", bordercolor="#929eaa")
-        content = ttk.Frame(self.window, padding=24)
-        content.pack(fill="both", expand=True)
-        ttk.Label(content, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
+        families = set(tkfont.families())
+        default_font = tkfont.nametofont("TkDefaultFont")
+        preferred = ("Noto Sans CJK SC", "Noto Sans SC") if UI_LANG == "zh-CN" else ("Noto Sans", "DejaVu Sans")
+        family = next((candidate for candidate in preferred if candidate in families), default_font.actual("family"))
+        default_font.configure(family=family, size=10, weight="normal")
+        theme.configure("TFrame", background=SURFACE)
+        theme.configure("TLabel", background=SURFACE, foreground=INK)
+        theme.configure("Title.TLabel", font=(family, 22))
+        theme.configure("Muted.TLabel", foreground=MUTED)
+        theme.configure("Card.TFrame", background=SURFACE)
+        theme.configure("Card.TLabel", background=SURFACE)
+        theme.configure("Side.TFrame", background=SIDEBAR)
+        theme.configure("Side.TLabel", background=SIDEBAR, font=(family, 12))
+        theme.configure("TButton", padding=(12, 8), background=SURFACE,
+                        foreground=INK, bordercolor=EDGE, lightcolor=SURFACE, darkcolor=SURFACE)
+        theme.map("TButton", background=[("active", FIELD)], bordercolor=[("focus", FOCUS)])
+        theme.configure("Link.TButton", padding=(5, 5), foreground=ACCENT, borderwidth=0,
+                        bordercolor=SURFACE, lightcolor=SURFACE, darkcolor=SURFACE)
+        theme.configure("Primary.TButton", foreground="white", background=ACCENT, borderwidth=0,
+                        bordercolor=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT)
+        theme.map("Primary.TButton", background=[("disabled", "#788da9"), ("active", "#2e68ce")])
+        for style in ("TEntry", "TCombobox"):
+            theme.configure(style, padding=(10, 8), bordercolor=EDGE, fieldbackground=FIELD,
+                            lightcolor=FIELD, darkcolor=FIELD, foreground=INK)
+            theme.map(style, bordercolor=[("focus", FOCUS), ("active", "#93add0")],
+                      fieldbackground=[("focus", "white"), ("readonly", FIELD)])
 
-        card = ttk.Frame(content, style="Card.TFrame", padding=(16, 13, 16, 2))
-        card.pack(fill="x", pady=(16, 10))
+        shell = ttk.Frame(self.window)
+        shell.pack(fill="both", expand=True)
+        sidebar = ttk.Frame(shell, style="Side.TFrame", padding=(25, 48))
+        sidebar.pack(side="left", fill="y")
+        try:
+            self.cover = tk.PhotoImage(file=str(APP_ROOT / "cover.png"))
+        except tk.TclError:
+            self.cover = None
+        if self.cover is not None:
+            width, height = self.cover.width(), self.cover.height()
+            radius = min(14, width // 2, height // 2)
+            for y in range(radius):
+                for x in range(radius):
+                    if (radius - x - .5) ** 2 + (radius - y - .5) ** 2 > radius ** 2:
+                        for sx, sy in ((x, y), (width - x - 1, y), (x, height - y - 1),
+                                       (width - x - 1, height - y - 1)):
+                            self.cover.transparency_set(sx, sy, True)
+            ttk.Label(sidebar, image=self.cover, style="Side.TLabel").pack(anchor="w", pady=(0, 17))
+        ttk.Label(sidebar, text=APP_NAME, style="Side.TLabel").pack(anchor="w")
+
+        content = ttk.Frame(shell, padding=(38, 32, 35, 22))
+        content.pack(side="left", fill="both", expand=True)
+        self.build_footer(content)
+        form_frame = ttk.Frame(content)
+        form_frame.pack(fill="both", expand=True)
+        viewport = tk.Canvas(form_frame, highlightthickness=0, background=SURFACE)
+        scrollbar = ttk.Scrollbar(form_frame, orient="vertical", command=viewport.yview)
+        viewport.configure(yscrollcommand=scrollbar.set)
+        viewport.pack(side="left", fill="both", expand=True)
+        panel = ttk.Frame(viewport)
+        panel_id = viewport.create_window(0, 0, window=panel, anchor="nw")
+
+        def resize_panel(_=None):
+            viewport.itemconfigure(panel_id, width=viewport.winfo_width())
+            viewport.configure(scrollregion=viewport.bbox("all"))
+            if panel.winfo_reqheight() > viewport.winfo_height():
+                scrollbar.pack(side="right", fill="y", before=viewport)
+            else:
+                scrollbar.pack_forget()
+
+        panel.bind("<Configure>", resize_panel)
+        viewport.bind("<Configure>", resize_panel)
+        for target in (panel, viewport):
+            target.bind("<Button-4>", lambda _: viewport.yview_scroll(-2, "units"))
+            target.bind("<Button-5>", lambda _: viewport.yview_scroll(2, "units"))
+        ttk.Label(panel, text=t("新建监控任务", "New monitoring task"), style="Title.TLabel").pack(anchor="w")
+        ttk.Label(panel, text=t("按关键词和日期采集笔记，导出 Excel 报告。",
+                               "Collect notes by keyword and date, then export an Excel report."),
+                  style="Muted.TLabel", wraplength=440).pack(anchor="w", pady=(6, 24))
+
+        card = ttk.Frame(panel, style="Card.TFrame")
+        card.pack(fill="x")
         card.columnconfigure((0, 1), weight=1, uniform="dates")
-        ttk.Label(card, text="关键词", style="Card.TLabel").grid(row=0, columnspan=2, sticky="w", pady=(0, 5))
-        self.keyword = tk.Text(card, height=2, wrap="word", font="TkDefaultFont",
-                               background="#f4f6fa", foreground="#17212c", insertbackground="#17212c",
-                               padx=9, pady=6, highlightthickness=1, highlightbackground="#929eaa",
-                               highlightcolor="#0768e7", borderwidth=0)
-        self.keyword.grid(row=1, columnspan=2, sticky="ew")
+        ttk.Label(card, text=t("关键词", "Keywords"), style="Card.TLabel").grid(
+            row=0, columnspan=2, sticky="w", pady=(0, 7))
+        well = tk.Frame(card, background=SURFACE, cursor="xterm")
+        well.grid(row=1, columnspan=2, sticky="ew", pady=(0, 18))
+        outline = tk.Canvas(well, background=SURFACE, highlightthickness=0, cursor="xterm")
+        outline.place(x=0, y=0, relwidth=1, relheight=1)
+        self.keyword = tk.Text(well, width=1, height=1, wrap="word", font="TkDefaultFont",
+                               background=FIELD, foreground=INK, insertbackground=INK,
+                               padx=0, pady=1, highlightthickness=0, borderwidth=0, cursor="xterm")
+        self.keyword.pack(fill="x", padx=13, pady=12)
+        placeholder = tk.Label(well, text=t("多个关键词用空格分隔，例如 宝山 硚口",
+                                           "Separate keywords with spaces, e.g. 宝山 硚口"),
+                               anchor="w", background=FIELD, foreground=MUTED, cursor="xterm",
+                               padx=0, pady=0)
+        outline_hover = False
+
+        def draw_keyword(_=None):
+            width, height = well.winfo_width(), well.winfo_height()
+            if width < 24 or height < 24:
+                return
+            focused = self.window.focus_get() == self.keyword
+            color = "white" if focused or outline_hover else FIELD
+            outline.delete("surface")
+            corners = (
+                2, 12, 2, 2, 12, 2, width - 12, 2, width - 2, 2, width - 2, 12,
+                width - 2, height - 12, width - 2, height - 2, width - 12, height - 2,
+                12, height - 2, 2, height - 2, 2, height - 12,
+            )
+            if focused:
+                outline.create_polygon(*corners, smooth=True, splinesteps=16, fill="", outline=HALO,
+                                       width=4, tags="surface")
+            outline.create_polygon(
+                *corners, smooth=True, splinesteps=16,
+                fill=color, outline=FOCUS if focused else "#93add0" if outline_hover else EDGE,
+                width=1.4 if focused else 1, tags="surface",
+            )
+            self.keyword.configure(background=color)
+            placeholder.configure(background=color)
+
+        def sync_keyword(_=None):
+            if self.keyword.get("1.0", "end-1c"):
+                placeholder.place_forget()
+            else:
+                placeholder.place(x=13, y=12, relwidth=1, width=-26)
+            lines = int(self.keyword.tk.call(self.keyword._w, "count", "-update", "-displaylines", "1.0", "end") or 1)
+            height = min(6, max(1, lines))
+            if int(self.keyword.cget("height")) != height:
+                self.keyword.configure(height=height)
+
+        def changed(_):
+            if self.keyword.edit_modified():
+                self.keyword.edit_modified(False)
+                sync_keyword()
+
+        def hover(active):
+            nonlocal outline_hover
+            outline_hover = active
+            draw_keyword()
+
+        def focus_keyword(event):
+            self.keyword.focus_set()
+            x = event.x_root - self.keyword.winfo_rootx()
+            y = event.y_root - self.keyword.winfo_rooty()
+            self.keyword.mark_set("insert", f"@{x},{y}")
+            return "break"
+
+        for target in (well, outline, placeholder, self.keyword):
+            target.bind("<Enter>", lambda _: hover(True))
+            target.bind("<Leave>", lambda _: hover(False))
+        for target in (outline, placeholder):
+            target.bind("<Button-1>", focus_keyword)
+        well.bind("<Configure>", draw_keyword)
+        self.keyword.bind("<FocusIn>", draw_keyword)
+        self.keyword.bind("<FocusOut>", lambda _: self.window.after_idle(draw_keyword))
+        self.keyword.bind("<<Modified>>", changed)
+        self.keyword.bind("<Configure>", sync_keyword)
         self.keyword.bind("<Tab>", lambda _: self.keyword.tk_focusNext().focus_set() or "break")
-        ttk.Label(card, text="空格分隔多个关键词，例如 宝山 硚口", style="Card.TLabel").grid(
-            row=2, columnspan=2, sticky="w", pady=(4, 12))
+        self.keyword.bind("<Shift-Tab>", lambda _: self.keyword.tk_focusPrev().focus_set() or "break")
+        if self.window.tk.call("tk", "windowingsystem") == "x11":
+            self.keyword.bind("<ISO_Left_Tab>", lambda _: self.keyword.tk_focusPrev().focus_set() or "break")
+        sync_keyword()
         today = datetime.now(SHANGHAI).date().isoformat()
         self.start_date = tk.StringVar(value=today)
         self.end_date = tk.StringVar(value=today)
-        self.entry_group(card, "开始日期 YYYY-MM-DD", self.start_date, 3, 0)
-        self.entry_group(card, "结束日期 YYYY-MM-DD", self.end_date, 3, 1)
+        self.entry_group(card, t("开始日期", "Start date"), self.start_date, 2, 0)
+        self.entry_group(card, t("结束日期", "End date"), self.end_date, 2, 1)
 
-        self.advanced_button = ttk.Button(content, text="更多设置", command=self.toggle_options)
-        self.advanced_button.pack(fill="x", pady=(0, 4))
-        self.options = ttk.Frame(content, style="Card.TFrame", padding=(16, 12, 16, 2))
+        self.advanced_button = ttk.Button(panel, command=self.toggle_options)
+        self.advanced_button.pack(fill="x", pady=(5, 8))
+        self.options = ttk.Frame(panel, style="Card.TFrame", padding=(0, 10, 0, 2))
         self.options.columnconfigure((0, 1), weight=1, uniform="options")
-        self.sort = tk.StringVar(value="最新")
+        self.sort = tk.StringVar(value=next(iter(SORT_OPTIONS)))
         self.screens = tk.StringVar(value=BOTTOM)
         self.provider = tk.StringVar(value=PROVIDERS[0])
         self.model = tk.StringVar()
         self.key = tk.StringVar()
         self.endpoint = tk.StringVar()
         self.template = tk.StringVar(value=BUILTIN)
-        self.option_select("网页排序", self.sort, ("最新", "综合"), 0, 0)
-        self.option_select("划屏数量（也可输入数字）", self.screens, (BOTTOM, "1", "2", "3", "4"), 0, 1, editable=True)
-        provider = self.option_select("AI 服务商", self.provider, PROVIDERS, 1, 0)
+        self.option_select(t("网页排序", "Sort order"), self.sort, tuple(SORT_OPTIONS), 0, 0)
+        self.option_select(t("划屏数量（也可输入数字）", "Screen count (or type a number)"),
+                           self.screens, (BOTTOM, "1", "2", "3", "4"), 0, 1, editable=True)
+        provider = self.option_select(t("AI 服务商", "AI provider"), self.provider, PROVIDERS, 1, 0)
         provider.bind("<<ComboboxSelected>>", self.provider_changed)
-        self.entry_group(self.options, "模型（可选）", self.model, 1, 1)
-        self.entry_group(self.options, "API 密钥（仅本次使用）", self.key, 2, 0, secret=True)
-        self.template_picker = self.option_select("报告生成模板", self.template, (), 2, 1)
+        self.entry_group(self.options, t("模型（可选）", "Model (optional)"), self.model, 1, 1)
+        self.entry_group(self.options, t("API 密钥（仅本次使用）", "API key (this run only)"), self.key, 2, 0, secret=True)
+        self.template_picker = self.option_select(t("报告生成模板", "Report template"), self.template, (), 2, 1)
         self.refresh_templates()
-        ttk.Button(self.options, text="导入 Markdown…", command=self.import_template).grid(
+        ttk.Button(self.options, text=t("导入 Markdown…", "Import Markdown…"), command=self.import_template).grid(
             row=3, column=1, sticky="e", padx=(8, 0), pady=(0, 12))
-        self.endpoint_group = self.entry_group(self.options, "百炼兼容接口（可选）", self.endpoint, 3, 0)
+        self.endpoint_group = self.entry_group(self.options, t("百炼兼容接口（可选）", "DashScope endpoint (optional)"),
+                                               self.endpoint, 3, 0)
         self.endpoint_group.grid_remove()
+        self.sort.trace_add("write", self.update_options_label)
+        self.screens.trace_add("write", self.update_options_label)
+        self.update_options_label()
 
-        self.status = tk.StringVar(value="准备就绪")
-        self.status_label = ttk.Label(content, textvariable=self.status, style="Muted.TLabel")
-        self.status_label.pack(anchor="w", pady=(9, 6))
-        self.status_label.bind("<Configure>", lambda _: self.status_label.configure(
-            wraplength=max(250, content.winfo_width() - 48)))
-        actions = ttk.Frame(content)
-        actions.pack(fill="x", pady=(0, 11))
-        ttk.Button(actions, text="打开报告目录", command=self.open_reports).pack(side="left")
-        self.run = ttk.Button(actions, text="开始监控", command=self.start, style="Primary.TButton")
-        self.run.pack(side="right")
-        self.stop_button = ttk.Button(actions, text="停止任务", command=self.stop, state="disabled")
-        self.stop_button.pack(side="right", padx=8)
-        self.background_button = ttk.Button(actions, text="后台执行", command=self.background, state="disabled")
-        self.background_button.pack(side="right")
-
-        pane = ttk.Frame(content)
-        pane.pack(fill="both", expand=True)
-        ttk.Label(pane, text="任务日志").pack(anchor="w", pady=(0, 5))
-        scrollbar = ttk.Scrollbar(pane, orient="vertical")
-        scrollbar.pack(side="right", fill="y")
-        self.log = tk.Text(pane, height=4, wrap="word", font="TkDefaultFont",
-                           padx=9, pady=8, relief="flat", state="disabled",
-                           yscrollcommand=scrollbar.set)
-        scrollbar.configure(command=self.log.yview)
+    def build_footer(self, parent):
+        self.details = ttk.Frame(parent)
+        ttk.Label(self.details, text=t("任务日志", "Activity log"), style="Muted.TLabel").pack(anchor="w", pady=(0, 6))
+        log_scroll = ttk.Scrollbar(self.details, orient="vertical")
+        log_scroll.pack(side="right", fill="y")
+        self.log = tk.Text(self.details, width=1, height=7, wrap="word", font="TkDefaultFont",
+                           background=FIELD, foreground=INK, padx=10, pady=8, relief="flat", state="disabled",
+                           highlightthickness=1, highlightbackground=EDGE, yscrollcommand=log_scroll.set)
+        log_scroll.configure(command=self.log.yview)
         self.log.pack(fill="both", expand=True)
-        self.keyword.focus_set()
+
+        self.footer = ttk.Frame(parent)
+        self.footer.pack(side="bottom", fill="x", pady=(12, 0))
+        tk.Frame(self.footer, height=1, background=EDGE).pack(fill="x", pady=(0, 13))
+        self.running_actions = ttk.Frame(self.footer)
+        actions = ttk.Frame(self.footer)
+        actions.pack(fill="x")
+        self.actions = actions
+        self.status = tk.StringVar(value=t("准备就绪", "Ready"))
+        self.run = ttk.Button(actions, text=t("开始监控", "Start monitoring"), command=self.start, style="Primary.TButton")
+        self.run.pack(side="right")
+        self.report_button = ttk.Button(actions, text=t("打开报告目录", "Open reports"), command=self.open_reports)
+        self.report_button.pack(side="right", padx=(0, 8))
+        self.stop_button = ttk.Button(self.running_actions, text=t("停止任务", "Stop"), command=self.stop)
+        self.stop_button.pack(side="right")
+        self.background_button = ttk.Button(self.running_actions, text=t("后台执行", "Run in background"),
+                                            command=self.background)
+        self.background_button.pack(side="right", padx=(0, 8))
+        tk.Label(actions, text="●", background=SURFACE, foreground=FOCUS, font=("TkDefaultFont", 7),
+                 padx=0).pack(side="left", padx=(0, 6))
+        self.status_label = ttk.Label(actions, textvariable=self.status, style="Muted.TLabel", wraplength=170)
+        self.status_label.pack(side="left")
+        self.details_button = ttk.Button(actions, text=t("任务详情", "Task details"),
+                                         command=self.toggle_details, style="Link.TButton")
+        self.details_button.pack(side="left", padx=(8, 0))
+
+    def toggle_details(self):
+        if self.details.winfo_manager():
+            self.details.pack_forget()
+            self.details_button.configure(text=t("任务详情", "Task details"))
+        else:
+            self.details.pack(side="bottom", fill="x", before=self.footer, pady=(10, 0))
+            self.details_button.configure(text=t("收起详情", "Hide details"))
 
     def option_select(self, label, variable, values, row, column, editable=False):
         group = ttk.Frame(self.options, style="Card.TFrame")
@@ -206,20 +389,19 @@ class Monitor:
         ttk.Label(group, text=label, style="Card.TLabel").pack(anchor="w", pady=(0, 5))
         picker = ttk.Combobox(group, textvariable=variable, values=values,
                               state="normal" if editable else "readonly", width=18)
-        picker.pack(fill="x", ipady=5)
+        picker.pack(fill="x")
         return picker
+
+    def update_options_label(self, *_):
+        title = t("收起更多设置", "Hide settings") if self.options.winfo_manager() else t("更多设置", "More settings")
+        self.advanced_button.configure(text=f"{title}     ·     {self.sort.get()} · {self.screens.get()}")
 
     def toggle_options(self):
         if self.options.winfo_manager():
             self.options.pack_forget()
-            self.advanced_button.configure(text="更多设置")
         else:
-            self.options.pack(fill="x", before=self.status_label, pady=(2, 0))
-            self.window.update_idletasks()
-            height = min(self.window.winfo_screenheight() - 90, max(self.window.winfo_height(), 768))
-            if height > self.window.winfo_height():
-                self.window.geometry(f"{self.window.winfo_width()}x{height}")
-            self.advanced_button.configure(text="收起更多设置")
+            self.options.pack(fill="x", after=self.advanced_button)
+        self.update_options_label()
 
     def provider_changed(self, _):
         self.model.set("")
@@ -236,17 +418,18 @@ class Monitor:
 
     def import_template(self):
         names = filedialog.askopenfilenames(
-            parent=self.window, title="导入报告生成模板",
-            filetypes=[("Markdown", "*.md"), ("全部文件", "*")],
+            parent=self.window, title=t("导入报告生成模板", "Import report templates"),
+            filetypes=[("Markdown", "*.md"), (t("全部文件", "All files"), "*")],
         )
         for name in names:
             try:
                 source = Path(name)
                 if source.suffix.lower() != ".md" or source.stat().st_size > 48003:
-                    raise ValueError("请选择不超过 12,000 个字符的 Markdown 文件。")
+                    raise ValueError(t("请选择不超过 12,000 个字符的 Markdown 文件。",
+                                       "Choose a Markdown file with no more than 12,000 characters."))
                 markdown = source.read_text(encoding="utf-8-sig")
                 if not markdown.strip():
-                    raise ValueError("报告模板文件为空。")
+                    raise ValueError(t("报告模板文件为空。", "The report template is empty."))
                 validate = """
 import { pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
@@ -260,10 +443,11 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
                     input=markdown, text=True, encoding="utf-8", capture_output=True, timeout=10,
                 )
                 if checked.returncode:
-                    raise ValueError(checked.stderr.strip() or "报告模板无法读取。")
+                    raise ValueError(checked.stderr.strip() or t("报告模板无法读取。", "The report template could not be read."))
                 self.templates.mkdir(parents=True, exist_ok=True, mode=0o700)
                 stem = source.stem.encode("utf-8")[:200].decode("utf-8", "ignore")
-                stem = f"{stem}（导入）" if stem == BUILTIN else stem
+                if stem in ("使用内置模板", "Built-in template"):
+                    stem += t("（导入）", " (imported)")
                 index = 1
                 while True:
                     target = self.templates / (f"{stem}.md" if index == 1 else f"{stem} ({index}).md")
@@ -278,24 +462,24 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
                     self.template.set(target.stem)
                     break
             except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-                messagebox.showerror("无法导入模板", str(error), parent=self.window)
+                messagebox.showerror(t("无法导入模板", "Could not import template"), str(error), parent=self.window)
 
     def start(self, source=""):
         if self.worker is not None:
             return
         keyword = self.keyword.get("1.0", "end-1c").strip()
         if not keyword:
-            self.status.set("请输入至少一个关键词。")
+            self.status.set(t("请输入至少一个关键词。", "Enter at least one keyword."))
             self.keyword.focus_set()
             return
         try:
             start = date_value(self.start_date.get())
             end = date_value(self.end_date.get())
         except ValueError:
-            self.status.set("请输入有效日期，格式为 YYYY-MM-DD。")
+            self.status.set(t("请输入有效日期，格式为 YYYY-MM-DD。", "Enter valid dates in YYYY-MM-DD format."))
             return
         if start > end:
-            self.status.set("结束日期不能早于开始日期。")
+            self.status.set(t("结束日期不能早于开始日期。", "The end date cannot be earlier than the start date."))
             return
         screens = self.screens.get().strip()
         if screens == BOTTOM:
@@ -303,12 +487,13 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         elif re.fullmatch(r"[0-9]{1,5}", screens) and 1 <= int(screens) <= 10000:
             count = int(screens)
         else:
-            self.status.set("划屏请输入 1 至 10000 的整数，或选择「下拉到底」。")
+            self.status.set(t("划屏请输入 1 至 10000 的整数，或选择「下拉到底」。",
+                              "Enter a screen count from 1 to 10,000 or select Scroll to bottom."))
             return
         selected = self.template.get()
         request = {
             "keyword": keyword, "start": start.isoformat(), "end": end.isoformat(),
-            "sort": self.sort.get(), "screens": count, "source": source,
+            "sort": SORT_OPTIONS[self.sort.get()], "screens": count, "source": source,
             "template": "" if selected == BUILTIN else str(self.templates / (selected + ".md")),
             "provider": self.provider.get(), "model": self.model.get().strip(),
             "endpoint": self.endpoint.get().strip(),
@@ -317,7 +502,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
             self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
             self.worker = Worker(self.home, request, self.key.get().strip())
         except OSError as error:
-            self.status.set("无法启动监控。")
+            self.status.set(t("无法启动监控。", "Could not start monitoring."))
             self.log_line(str(error))
             return
         self.key.set("")
@@ -331,8 +516,8 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.log.configure(state="disabled")
         self.run.configure(state="disabled")
         self.stop_button.configure(state="normal")
-        self.background_button.configure(state="normal")
-        self.set_progress("正在启动监控…")
+        self.running_actions.pack(fill="x", before=self.actions, pady=(0, 8))
+        self.set_progress(t("正在启动监控…", "Starting monitoring…"))
         self.window.after(50, self.poll)
 
     def poll(self):
@@ -362,8 +547,9 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         elif line.startswith("UI_ANALYSIS_WARNING "):
             line = line.removeprefix("UI_ANALYSIS_WARNING ")
             self.warning = line
-        elif line.startswith(REPORT_PREFIX):
-            self.report = Path(line.removeprefix(REPORT_PREFIX))
+        elif line.startswith(REPORT_PREFIXES):
+            prefix = next(prefix for prefix in REPORT_PREFIXES if line.startswith(prefix))
+            self.report = Path(line.removeprefix(prefix))
         elif line.startswith(PROGRESS_LINES) and not self.cancelled:
             self.set_progress(line)
         self.log_line(line)
@@ -382,32 +568,34 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
 
     def show_prompt(self, text):
         self.window.deiconify()
-        self.set_progress("等待网页操作")
+        self.set_progress(t("等待网页操作", "Waiting for browser interaction"))
         self.log_line(text)
         dialog = self.dialog = tk.Toplevel(self.window)
-        dialog.title("继续网页操作")
+        dialog.title(t("继续网页操作", "Continue in the browser"))
         dialog.transient(self.window)
         dialog.resizable(False, False)
         panel = ttk.Frame(dialog, padding=18)
         panel.pack()
         ttk.Label(panel, text=text, wraplength=385, justify="left").pack(anchor="w")
-        response = tk.StringVar(value="继续")
-        time_prompt = "同名时间选项" in text
+        response = tk.StringVar()
+        time_prompt = "同名时间选项" in text or "same publication time option" in text
+        unrestricted = "此日期可使用不限" in text or "Any time covers this range" in text
+        options = {ANY_TIME: "不限"} if unrestricted else TIME_CHOICES
         if time_prompt:
-            response.set("")
-            options = ("不限",) if "此日期可使用不限" in text else TIME_CHOICES
-            picker = ttk.Combobox(panel, values=options, state="readonly", textvariable=response)
+            picker = ttk.Combobox(panel, values=tuple(options), state="readonly", textvariable=response)
             picker.pack(fill="x", pady=(10, 0))
         buttons = ttk.Frame(panel)
         buttons.pack(fill="x", pady=(14, 0))
-        ttk.Button(buttons, text="结束任务", command=self.stop).pack(side="right")
+        ttk.Button(buttons, text=t("结束任务", "End task"), command=self.stop).pack(side="right")
 
         def answer():
+            ready = options.get(response.get(), "") if time_prompt else "继续"
             self.dismiss_prompt()
-            self.worker.send(json.dumps(response.get(), ensure_ascii=False))
-            self.set_progress("继续监控…")
+            self.worker.send(json.dumps(ready, ensure_ascii=False))
+            self.set_progress(t("继续监控…", "Resuming monitoring…"))
 
-        okay = ttk.Button(buttons, text="已应用" if time_prompt else "继续", command=answer)
+        label = t("已应用", "Applied") if time_prompt else t("继续", "Continue")
+        okay = ttk.Button(buttons, text=label, command=answer)
         okay.pack(side="right", padx=8)
         if time_prompt:
             okay.configure(state="disabled")
@@ -430,7 +618,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.dismiss_prompt()
         self.worker.send("UI_CANCEL")
         self.stop_button.configure(state="disabled")
-        self.set_progress("正在停止…")
+        self.set_progress(t("正在停止…", "Stopping…"))
         task = self.worker
         self.window.after(8000, lambda: task.kill() if self.worker is task else None)
 
@@ -451,21 +639,22 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.worker = None
         self.result = code
         self.run.configure(state="normal")
-        self.stop_button.configure(state="disabled")
-        self.background_button.configure(state="disabled")
+        self.running_actions.pack_forget()
         if self.closing:
             self.window.destroy()
             return
         if self.cancelled:
-            message = "任务已停止"
+            message = t("任务已停止", "Task stopped")
         elif self.report is not None and self.report.is_file():
-            message = "已导出报告"
+            message = t("已导出报告", "Report exported")
             if code != 0:
-                message += " · 部分关键词失败"
+                message += t(" · 部分关键词失败", " · Some keywords failed")
             elif self.warning:
                 message += f" · {self.warning}"
         else:
-            message = "运行未完成，请查看日志"
+            message = t("运行未完成，请查看日志", "Monitoring did not finish. See the activity log.")
+            if not self.details.winfo_manager():
+                self.toggle_details()
         self.set_progress(message)
         notify = shutil.which("notify-send")
         if self.minimized and notify and not self.verify:
@@ -482,18 +671,20 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
             subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as error:
             self.log_line(str(error))
-            self.status.set("无法打开报告目录。")
+            self.status.set(t("无法打开报告目录。", "Could not open the reports folder."))
 
     def close(self):
         if not self.worker:
             self.window.destroy()
-        elif messagebox.askyesno("退出程序", "停止正在运行的任务并退出？", parent=self.window):
+        elif messagebox.askyesno(t("退出程序", "Quit"),
+                                 t("停止正在运行的任务并退出？", "Stop the running task and quit?"),
+                                 parent=self.window):
             self.closing = True
             self.stop()
 
 
 def verify_app(app, fixture):
-    assert app.sort.get() == "最新" and app.screens.get() == BOTTOM
+    assert SORT_OPTIONS[app.sort.get()] == "最新" and app.screens.get() == BOTTOM
     app.keyword.insert("1.0", "宝山 硚口")
     app.start_date.set("2026-11-23")
     app.end_date.set("2026-11-23")

@@ -42,6 +42,8 @@ if ((& $node -p 'process.arch') -ne $expected -or $LASTEXITCODE -ne 0) {
 }
 $env:XHS_AI_KEY = $null
 $env:OPENAI_API_KEY = $null
+Invoke-CheckedProcess $exe @('--verify-ui', 'en') 'English interface smoke test'
+Invoke-CheckedProcess $exe @('--verify-ui', 'zh-CN') 'Simplified Chinese interface smoke test'
 Invoke-CheckedProcess $exe @('--verify', ('"{0}"' -f $fixture)) 'Installed desktop smoke test'
 $report = Get-ChildItem -LiteralPath (Join-Path $appFolder 'reports') -Filter '*.xlsx'
 if (@($report).Count -ne 1) { throw 'Expected one combined Excel report.' }

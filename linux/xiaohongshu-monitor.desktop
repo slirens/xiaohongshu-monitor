@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=Xiaohongshu Monitor
-Name[zh_CN]=小红书舆情监控
+Name[zh]=小红书舆情监控
 Comment=Search Xiaohongshu notes and export Excel reports
-Comment[zh_CN]=检索小红书笔记并导出 Excel 报告
+Comment[zh]=检索小红书笔记并导出 Excel 报告
 Exec=/usr/bin/xiaohongshu-monitor
 Icon=xiaohongshu-monitor
 Terminal=false

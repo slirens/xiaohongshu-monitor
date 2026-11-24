@@ -1,11 +1,18 @@
+## 更新 · What's new
+
+- 各平台采用浅雾蓝界面。关键词框支持悬停反馈、清晰的聚焦描边和多行输入。
+- 界面自动随系统显示语言切换。中文系统显示简体中文，其他语言环境显示英文。鸿蒙扩展使用华为浏览器的界面语言。
+- The new pale-blue interface has a subtle hover state, a clear focus outline, and a keyword field that grows as you type.
+- The interface follows the system display language, with Simplified Chinese for Chinese locales and English otherwise. The HarmonyOS extension follows the browser interface language.
+
 ## 下载 · Download
 
 | 系统 · Platform | 安装包 · Package |
 | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-windows-x86-setup.exe) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-macos-x86_64.dmg) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-linux-amd64.deb) |
-| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.0/xiaohongshu-monitor-v1.0.0-harmonyos-browser.zip) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-windows-x86-setup.exe) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-macos-x86_64.dmg) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-linux-amd64.deb) |
+| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.1/xiaohongshu-monitor-v1.0.1-harmonyos-browser.zip) |
 
 ### 安装说明
 
