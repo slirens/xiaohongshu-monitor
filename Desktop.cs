@@ -46,7 +46,7 @@ internal sealed partial class Desktop : Form
     private readonly ComboBox screens = new ComboBox();
     private readonly Label status = new Label();
     private readonly ProgressBar progress = new ProgressBar();
-    private readonly Button run = MakeButton(Ui("开始监控 ›", "Start monitoring"), true);
+    private readonly Button run = MakeButton(Ui("开始监控", "Start monitoring"), true);
     private readonly Button open = MakeButton(Ui("打开报告目录", "Open reports"), false);
     private readonly NotifyIcon tray = new NotifyIcon();
     private readonly JavaScriptSerializer json = new JavaScriptSerializer();
@@ -108,7 +108,7 @@ internal sealed partial class Desktop : Form
         Controls.Add(host);
         setupView = host;
         CreateCompactView();
-        var sidebar = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 1,
+        var sidebar = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 1, RowCount = 3,
             BackColor = Color.FromArgb(228, 239, 250), Padding = new Padding(23, 39, 23, 20) };
         sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 207));
         sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 57));
@@ -126,6 +126,7 @@ internal sealed partial class Desktop : Form
         sideTitle.Font = HeadingFont(13);
         sideTitle.Anchor = AnchorStyles.Left;
         sidebar.Controls.Add(sideTitle, 0, 1);
+        sidebar.Controls.Add(new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty }, 0, 2);
         var page = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, AutoScroll = true,
             Padding = new Padding(32, 37, 32, 18), Margin = Padding.Empty, RowCount = 6, ColumnCount = 1 };
         page.RowStyles.Add(new RowStyle(SizeType.Absolute, 83));
@@ -198,11 +199,18 @@ internal sealed partial class Desktop : Form
         screens.AccessibleName = Ui("划屏数量", "Screen count");
         screens.BackColor = FieldFill;
         screens.ForeColor = Ink;
-        var advancedToggle = MakeButton(Ui("›   更多设置 · 最新排序 / 下拉到底（可输入屏数）", "›   More settings · Latest / Scroll to bottom"), false);
+        var advancedToggle = MakeButton(Ui("›   更多设置", "›   More settings"), false);
         advancedToggle.Dock = DockStyle.Fill;
         advancedToggle.Margin = new Padding(0, 2, 0, 3);
         advancedToggle.Padding = new Padding(10, 0, 0, 0);
         advancedToggle.TextAlign = ContentAlignment.MiddleLeft;
+        advancedToggle.Paint += delegate(object sender, PaintEventArgs args) {
+            string summary = order.Text + "  ·  " + screens.Text;
+            int left = Math.Min(172, advancedToggle.Width / 2);
+            TextRenderer.DrawText(args.Graphics, summary, Font,
+                new Rectangle(left, 0, Math.Max(1, advancedToggle.Width - left - 13), advancedToggle.Height), Muted,
+                TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+        };
         var advancedCard = Card(1);
         advancedCard.Margin = new Padding(0, 8, 0, 0);
         advancedCard.BackColor = Surface;
@@ -237,8 +245,9 @@ internal sealed partial class Desktop : Form
         AddStack(advanced, Ui("网页排序", "Sort results"), order, 0, 0, 1);
         AddStack(advanced, Ui("划屏数量（可输入数字）", "Screen count (editable)"), screens, 1, 0, 1);
         Action refreshAdvanced = delegate {
-            advancedToggle.Text = advanced.Visible ? Ui("⌄   更多设置", "⌄   More settings") :
-                Ui("›   更多设置", "›   More settings") + "     ·     " + order.Text + " / " + screens.Text;
+            advancedToggle.Text = advanced.Visible ? Ui("⌄   更多设置", "⌄   More settings") : Ui("›   更多设置", "›   More settings");
+            advancedToggle.AccessibleDescription = order.Text + " · " + screens.Text;
+            advancedToggle.Invalidate();
         };
         order.SelectedIndexChanged += delegate { refreshAdvanced(); };
         screens.TextChanged += delegate { refreshAdvanced(); };
@@ -331,7 +340,7 @@ internal sealed partial class Desktop : Form
             using (var line = new Pen(FieldEdge)) args.Graphics.DrawLine(line, 0, 1, results.Width, 1);
         };
         page.Controls.Add(results, 0, 4);
-        status.Text = Ui("●  准备就绪 · 运行时可点击「后台执行」", "●  Ready");
+        status.Text = Ui("●  准备就绪", "●  Ready");
         status.ForeColor = Muted;
         status.Dock = DockStyle.Fill;
         status.TextAlign = ContentAlignment.MiddleLeft;
@@ -342,7 +351,7 @@ internal sealed partial class Desktop : Form
         statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, English ? 101 : 89));
         statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, English ? 276 : 257));
         statusRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var detailToggle = MakeButton(Ui("任务详情  ›", "Task details"), false);
+        var detailToggle = MakeButton(Ui("任务详情", "Task details"), false);
         detailToggle.Dock = DockStyle.Fill;
         detailToggle.Margin = Padding.Empty;
         detailToggle.FlatAppearance.BorderSize = 0;
@@ -815,7 +824,7 @@ internal sealed partial class Desktop : Form
     private int VerifyLayout()
     {
         if (Text != Ui("小红书舆情监控", "Xiaohongshu Monitor") ||
-            run.Text != Ui("开始监控 ›", "Start monitoring") ||
+            run.Text != Ui("开始监控", "Start monitoring") ||
             start.AccessibleName != Ui("开始日期", "Start date")) return 9;
         DateTime selected;
         if (!start.TryRead(out selected) || selected != DateTime.UtcNow.AddHours(8).Date) return 10;
@@ -962,6 +971,7 @@ internal sealed partial class Desktop : Form
             Controls.Add(Editor);
             Watch(Editor);
             Watch(this);
+            VisibleChanged += delegate { RefreshAppearance(); };
             MouseDown += delegate(object sender, MouseEventArgs args) { FocusEditor(args.Location); };
         }
 
@@ -976,7 +986,7 @@ internal sealed partial class Desktop : Form
         internal void SetHint(Label caption)
         {
             hint = caption;
-            hint.Location = new Point(Padding.Left, Padding.Top);
+            hint.Location = new Point(Padding.Left + 4, Padding.Top);
             hint.Cursor = Cursors.IBeam;
             hint.MouseDown += delegate(object sender, MouseEventArgs args) { FocusEditor(new Point(hint.Left + args.X, hint.Top + args.Y)); };
             Watch(hint);
@@ -993,7 +1003,7 @@ internal sealed partial class Desktop : Form
             if (Editor.BackColor != fill) Editor.BackColor = fill;
             if (hint != null) {
                 hint.BackColor = fill;
-                hint.Visible = Editor.TextLength == 0 && !Editor.Focused;
+                hint.Visible = Editor.TextLength == 0;
             }
             Invalidate();
         }
