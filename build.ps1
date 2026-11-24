@@ -38,6 +38,7 @@ if ($NpmCli) { & $nodePath $NpmCli @npmArgs } else { & npm.cmd @npmArgs }
 if ($LASTEXITCODE -ne 0) { throw "npm ci failed: $LASTEXITCODE" }
 Copy-Item -LiteralPath $nodePath -Destination (Join-Path $runtime "node.exe") -Force
 Copy-Item -LiteralPath (Join-Path $source "report-template.mjs") -Destination $runtime -Force
+Copy-Item -LiteralPath (Join-Path $source "monitor.mjs") -Destination $runtime -Force
 $nodeLicense = Join-Path $nodeDirectory "LICENSE"
 if (Test-Path -LiteralPath $nodeLicense) {
     Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $runtime "Node-LICENSE.txt") -Force
@@ -45,9 +46,10 @@ if (Test-Path -LiteralPath $nodeLicense) {
 $exe = Join-Path $destination "小红书舆情监控v1.exe"
 $worker = Join-Path $source "monitor.mjs"
 $cover = Join-Path $source "cover.png"
+$icon = Join-Path $source "cover.ico"
 $compilerArgs = @("/nologo", "/target:winexe", "/platform:$Architecture", "/codepage:65001", "/out:$exe",
     "/r:System.Windows.Forms.dll", "/r:System.Drawing.dll", "/r:System.Web.Extensions.dll",
-    "/resource:$worker,monitor.mjs", "/resource:$cover,cover.png",
+    "/win32icon:$icon", "/resource:$worker,monitor.mjs", "/resource:$cover,cover.png",
     (Join-Path $source "Desktop.cs"), (Join-Path $source "DesktopActivity.cs"))
 & $compiler @compilerArgs
 if ($LASTEXITCODE -ne 0) { throw "C# compilation failed: $LASTEXITCODE" }

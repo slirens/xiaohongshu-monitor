@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -6,14 +7,16 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
-[assembly: AssemblyInformationalVersion("1.0.1")]
+[assembly: AssemblyVersion("1.0.6.0")]
+[assembly: AssemblyFileVersion("1.0.6.0")]
+[assembly: AssemblyInformationalVersion("1.0.6")]
 
 internal sealed partial class Desktop : Form
 {
@@ -48,9 +51,13 @@ internal sealed partial class Desktop : Form
     private readonly ProgressBar progress = new ProgressBar();
     private readonly Button run = MakeButton(Ui("开始监控", "Start monitoring"), true);
     private readonly Button open = MakeButton(Ui("打开报告目录", "Open reports"), false);
+    private readonly Button exportDiagnostics = MakeButton(Ui("导出诊断日志", "Export diagnostics"), false);
     private readonly NotifyIcon tray = new NotifyIcon();
     private readonly JavaScriptSerializer json = new JavaScriptSerializer();
     private readonly string home = AppDomain.CurrentDomain.BaseDirectory;
+    private readonly string diagnosticsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "XhsMonitor", "diagnostics");
+    private string latestDiagnosticsFile;
     private string report;
     private bool running;
     private bool cancelRequested;
@@ -363,11 +370,12 @@ internal sealed partial class Desktop : Form
         results.Controls.Add(statusRow);
         var details = Card(1);
         details.Visible = false;
+        int diagnosticRow = 0;
 #if DISTRIBUTION
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-#else
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        diagnosticRow = 1;
 #endif
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
         page.Controls.Add(details, 0, 5);
@@ -385,6 +393,15 @@ internal sealed partial class Desktop : Form
 #if DISTRIBUTION
         InstallDiagnosticButton(details);
 #endif
+        latestDiagnosticsFile = TaskDiagnostics.Latest(diagnosticsFolder);
+        exportDiagnostics.Anchor = AnchorStyles.Right;
+        exportDiagnostics.Width = English ? 160 : 144;
+        exportDiagnostics.Height = 32;
+        exportDiagnostics.Margin = new Padding(0, 0, 0, 4);
+        exportDiagnostics.Enabled = latestDiagnosticsFile != null;
+        tooltip.SetToolTip(exportDiagnostics, Ui("将最近一次任务的诊断保存为本地文件。", "Save diagnostics from the latest run as a local file."));
+        exportDiagnostics.Click += delegate { ExportDiagnostics(); };
+        details.Controls.Add(exportDiagnostics, 0, diagnosticRow);
         log.Dock = DockStyle.Fill;
         log.Multiline = true;
         log.ReadOnly = true;
@@ -393,10 +410,10 @@ internal sealed partial class Desktop : Form
         log.BorderStyle = BorderStyle.FixedSingle;
         log.AccessibleName = Ui("执行进度", "Task progress");
         if (log.TextLength == 0) log.Text = Ui("运行后可在这里查看采集与导出进度。", "Collection and export progress will appear here.");
-        details.Controls.Add(log, 0, 1);
+        details.Controls.Add(log, 0, diagnosticRow + 1);
         progress.Dock = DockStyle.Fill;
         progress.Visible = false;
-        details.Controls.Add(progress, 0, 2);
+        details.Controls.Add(progress, 0, diagnosticRow + 2);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         actions.Margin = Padding.Empty;
         run.Width = English ? 139 : 118;
@@ -479,18 +496,27 @@ internal sealed partial class Desktop : Form
         ShowCompactView();
         string key = secret.Text.Trim();
         secret.Clear();
+        exportDiagnostics.Enabled = false;
+        latestDiagnosticsFile = null;
+        TaskDiagnostics diagnostics = TaskDiagnostics.Begin(diagnosticsFolder, Application.ProductVersion);
+        int? workerExitCode = null;
+        string diagnosticOutcome = "failed", diagnosticError = null;
         try {
-            using (var worker = StartWorker(key)) {
+            using (var worker = StartWorker(key, diagnostics)) {
                 activeWorker = worker;
+                if (diagnostics != null) diagnostics.DesktopEvent("worker_started");
                 Send(worker, keyword.Text.Trim(), from, to, reportTemplate, order.SelectedIndex == 0 ? "最新" : "综合");
+                if (diagnostics != null) diagnostics.DesktopEvent("worker_request_sent");
                 Task errors = Task.Run(async delegate {
                     string line;
                     while ((line = await worker.StandardError.ReadLineAsync()) != null)
-                        if (!line.StartsWith("MONO_WASM:")) PostLog(line);
+                        if (!line.StartsWith("MONO_WASM:") && !line.StartsWith(TaskDiagnostics.WorkerPrefix, StringComparison.Ordinal)) PostLog(line);
                 });
                 string message, lastProgress = null, analysisWarning = null;
                 while ((message = await worker.StandardOutput.ReadLineAsync()) != null) {
-                    if (message.StartsWith("UI_ASK ")) {
+                    if (message.StartsWith(TaskDiagnostics.WorkerPrefix, StringComparison.Ordinal)) {
+                        if (diagnostics != null) diagnostics.WorkerEvent(message.Substring(TaskDiagnostics.WorkerPrefix.Length));
+                    } else if (message.StartsWith("UI_ASK ")) {
                         if (cancelRequested) continue;
                         string answer = PromptUser(json.Deserialize<string>(message.Substring(7)));
                         if (cancelRequested) continue;
@@ -520,12 +546,15 @@ internal sealed partial class Desktop : Form
                 }
                 await errors;
                 await Task.Run((Action)worker.WaitForExit);
-                bool succeeded = worker.ExitCode == 0 && File.Exists(report);
+                workerExitCode = worker.ExitCode;
+                bool reportExists = File.Exists(report);
+                bool succeeded = workerExitCode == 0 && reportExists;
+                diagnosticOutcome = succeeded ? "completed" : cancelRequested ? "stopped" : reportExists ? "partial" : "failed";
 #if DISTRIBUTION
                 EndDiagnostic(succeeded ? "completed" : cancelRequested ? "stopped" : "failed");
 #endif
                 status.Text = succeeded ? Ui("已导出 · ", "Exported · ") + (analysisWarning ?? lastProgress) : cancelRequested ? Ui("任务已停止", "Task stopped") :
-                    File.Exists(report) ? Ui("部分关键词失败 · 已导出报告", "Report exported with some keyword failures") : Ui("运行结束，请查看日志", "Run ended. Check the log.");
+                    reportExists ? Ui("部分关键词失败 · 已导出报告", "Report exported with some keyword failures") : Ui("运行结束，请查看日志", "Run ended. Check the log.");
                 if (!exitRequested) {
                     Notify(succeeded ? (analysisWarning == null ? Ui("舆情报告已生成", "Report ready") : Ui("已导出 · AI 分析未完整", "Exported with partial AI analysis")) : cancelRequested ? Ui("监控任务已停止", "Monitoring stopped") : Ui("监控任务未完成", "Monitoring did not finish"),
                         succeeded ? (analysisWarning ?? lastProgress ?? Ui("点击通知返回程序，或从托盘打开报告目录。", "Click to open the app, or open reports from the system tray.")) : Ui("点击通知查看执行日志。", "Click to see the task log."),
@@ -533,6 +562,8 @@ internal sealed partial class Desktop : Form
                 }
             }
         } catch (Exception ex) {
+            diagnosticOutcome = cancelRequested ? "stopped" : "failed";
+            diagnosticError = ex is FileNotFoundException ? "file_missing" : ex is IOException ? "io_error" : "desktop_error";
 #if DISTRIBUTION
             EndDiagnostic(cancelRequested ? "stopped" : "failed");
 #endif
@@ -540,6 +571,11 @@ internal sealed partial class Desktop : Form
             status.Text = Ui("启动或运行失败", "The task could not start or finish");
             if (!exitRequested) Notify(Ui("监控任务未完成", "Monitoring did not finish"), Ui("点击通知查看执行日志。", "Click to see the task log."), ToolTipIcon.Warning);
         } finally {
+            if (diagnostics != null) {
+                diagnostics.Finish(diagnosticOutcome, workerExitCode, diagnosticError);
+                latestDiagnosticsFile = diagnostics.FilePath;
+                exportDiagnostics.Enabled = File.Exists(latestDiagnosticsFile);
+            }
             activeWorker = null;
             running = false;
             activityTimer.Stop();
@@ -555,8 +591,29 @@ internal sealed partial class Desktop : Form
         }
     }
 
-    private Process StartWorker(string key)
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int AssocQueryStringW(uint flags, uint kind, string association, string extra,
+        StringBuilder value, ref uint capacity);
+
+    private static string DefaultBrowserExecutable()
     {
+        const uint protocolAssociation = 0x00001000;
+        const uint executableString = 2;
+        foreach (string protocol in new[] { "https", "http" }) {
+            uint capacity = 0;
+            if (AssocQueryStringW(protocolAssociation, executableString, protocol, null, null, ref capacity) != 1 ||
+                capacity == 0 || capacity > 32768) continue;
+            var value = new StringBuilder((int)capacity);
+            if (AssocQueryStringW(protocolAssociation, executableString, protocol, null, value, ref capacity) != 0) continue;
+            string path = value.ToString();
+            if (Path.IsPathRooted(path) && Path.GetExtension(path).Equals(".exe", StringComparison.OrdinalIgnoreCase)) return path;
+        }
+        return null;
+    }
+
+    private Process StartWorker(string key, TaskDiagnostics diagnostics = null)
+    {
+        var preparation = Stopwatch.StartNew();
         string runtime = FindRuntime();
         var execution = new ProcessStartInfo(runtime) {
             WorkingDirectory = home, UseShellExecute = false, CreateNoWindow = true,
@@ -565,22 +622,45 @@ internal sealed partial class Desktop : Form
         };
         execution.EnvironmentVariables["XHS_MONITOR_HOME"] = home;
         execution.EnvironmentVariables["XHS_UI_LANG"] = English ? "en" : "zh-CN";
+        execution.EnvironmentVariables["XHS_TASK_DIAGNOSTICS"] = "1";
+        execution.EnvironmentVariables.Remove("XHS_DEFAULT_BROWSER_EXE");
+        string defaultBrowser = DefaultBrowserExecutable();
+        if (defaultBrowser != null) execution.EnvironmentVariables["XHS_DEFAULT_BROWSER_EXE"] = defaultBrowser;
         execution.EnvironmentVariables.Remove("XHS_AI_KEY");
         execution.EnvironmentVariables.Remove("OPENAI_API_KEY");
         if (!string.IsNullOrEmpty(key)) execution.EnvironmentVariables["XHS_AI_KEY"] = key;
-        string workerPath = Path.Combine(Path.GetTempPath(), "xhs-monitor-" + Guid.NewGuid().ToString("N") + ".mjs");
+        string workerPath = Path.Combine(home, "runtime", "monitor.mjs");
+        bool temporary = false;
         try {
             using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("monitor.mjs"))
-            using (var file = File.Create(workerPath)) resource.CopyTo(file);
+            using (var buffer = new MemoryStream()) {
+                resource.CopyTo(buffer);
+                byte[] embedded = buffer.ToArray();
+                if (!WorkerFileMatches(workerPath, embedded)) {
+                    workerPath = Path.Combine(Path.GetTempPath(), "xhs-monitor-" + Guid.NewGuid().ToString("N") + ".mjs");
+                    temporary = true;
+                    File.WriteAllBytes(workerPath, embedded);
+                }
+            }
+            if (diagnostics != null) diagnostics.DesktopEvent(temporary ? "worker_prepared_temp" : "worker_prepared_installed", preparation.ElapsedMilliseconds);
             execution.Arguments = "\"" + workerPath + "\" --desktop";
             var worker = new Process { StartInfo = execution, EnableRaisingEvents = true };
-            worker.Exited += delegate { TryDelete(workerPath); };
+            if (temporary) worker.Exited += delegate { TryDelete(workerPath); };
             if (!worker.Start()) throw new InvalidOperationException(Ui("未能启动采集程序。", "Could not start the collection process."));
             return worker;
         } catch {
-            TryDelete(workerPath);
+            if (temporary) TryDelete(workerPath);
             throw;
         }
+    }
+
+    private static bool WorkerFileMatches(string path, byte[] embedded)
+    {
+        try {
+            var file = new FileInfo(path);
+            return file.Exists && file.Length == embedded.Length && File.ReadAllBytes(path).SequenceEqual(embedded);
+        } catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     private void Send(Process worker, string term, DateTime from, DateTime to, string template, string sort, string source = "")
@@ -597,48 +677,35 @@ internal sealed partial class Desktop : Form
 
     private string PromptUser(string message)
     {
+        bool signIn = message.StartsWith("小红书需要登录或完成网页验证", StringComparison.Ordinal) ||
+            message.StartsWith("Xiaohongshu requires sign-in or verification.", StringComparison.Ordinal);
         RestoreWindow();
-        SetLiveProgress(Ui("等待网页操作", "Waiting for browser input"));
+        SetLiveProgress(signIn ? Ui("等待小红书登录", "Waiting for Xiaohongshu sign-in") :
+            Ui("等待网页操作", "Waiting for browser input"));
         AppendLog(message);
-        using (var dialog = new Form { Text = Ui("继续网页操作", "Continue in the browser"), Width = 550, Height = 257, StartPosition = FormStartPosition.CenterParent, Font = Font, MaximizeBox = false, MinimizeBox = false, BackColor = Surface }) {
+        string title = signIn ? Ui("登录小红书", "Sign in to Xiaohongshu") : Ui("继续网页操作", "Continue in the browser");
+        using (var dialog = new Form { Text = title, Width = 550, Height = 257, StartPosition = FormStartPosition.CenterParent, Font = Font, MaximizeBox = false, MinimizeBox = false, BackColor = Surface }) {
             var caption = new Label { Text = message, Left = 22, Top = 18, Width = 485, Height = 84 };
-            bool needsText = message.Contains("同名时间选项") || message.Contains("same publication time option");
             bool browserChoice = message.StartsWith("后台采集需要打开浏览器") || message.StartsWith("Background collection needs a browser window");
             var ok = MakeButton(browserChoice ? Ui("打开浏览器", "Open browser") : Ui("继续", "Continue"), true);
             ok.SetBounds(390, 158, 116, 34);
             ok.DialogResult = DialogResult.OK;
-            if (needsText) {
-                var presets = new ComboBox { Left = 22, Top = 110, Width = 485, DropDownStyle = ComboBoxStyle.DropDownList };
-                bool anyTime = message.Contains("此日期可使用不限") || message.Contains("Any time covers this range");
-                string[] available = anyTime ? new[] { "不限" } : new[] { "一天内", "一周内", "半年内" };
-                if (anyTime) presets.Items.Add(Ui("不限", "Any time"));
-                else presets.Items.AddRange(new object[] { Ui("一天内", "Past day"), Ui("一周内", "Past week"), Ui("半年内", "Past six months") });
-                ok.Text = Ui("已应用", "Applied");
-                ok.Enabled = false;
-                presets.SelectedIndexChanged += delegate { ok.Enabled = presets.SelectedIndex >= 0; };
-                var endTask = MakeButton(Ui("结束任务", "End task"), false);
-                endTask.SetBounds(258, 158, 122, 34);
-                endTask.DialogResult = DialogResult.Cancel;
-                dialog.CancelButton = endTask;
-                dialog.Controls.Add(presets);
-                dialog.Controls.AddRange(new Control[] { caption, endTask, ok });
-                dialog.AcceptButton = ok;
-                string chosen = ShowPrompt(dialog) == DialogResult.OK ? available[presets.SelectedIndex] : "";
-                SetLiveProgress(Ui("正在继续监控…", "Resuming monitoring…"));
-                return chosen;
-            }
             dialog.Controls.AddRange(new Control[] { caption, ok });
             dialog.AcceptButton = ok;
-            if (browserChoice) {
-                var stop = MakeButton(Ui("结束", "End"), false);
+            if (browserChoice || signIn) {
+                var stop = MakeButton(signIn ? Ui("结束任务", "End task") : Ui("结束", "End"), false);
                 stop.SetBounds(258, 158, 122, 34);
                 stop.DialogResult = DialogResult.Cancel;
                 dialog.Controls.Add(stop);
                 dialog.CancelButton = stop;
             }
             DialogResult result = ShowPrompt(dialog);
+            if (signIn && result != DialogResult.OK) {
+                if (!cancelRequested) StopWorker(false);
+                return "";
+            }
             SetLiveProgress(Ui("正在继续监控…", "Resuming monitoring…"));
-            return browserChoice && result == DialogResult.OK ? "继续" : "";
+            return (browserChoice || signIn) && result == DialogResult.OK ? "继续" : "";
         }
     }
 
@@ -768,6 +835,7 @@ internal sealed partial class Desktop : Form
         setupView.Visible = false;
         compactView.Visible = true;
         compactView.BringToFront();
+        UpdateActivity();
     }
 
     private void RestoreSetupView()
@@ -801,6 +869,158 @@ internal sealed partial class Desktop : Form
         } catch (Exception error) {
             MessageBox.Show(this, error.Message, Ui("无法打开报告目录", "Could not open the reports folder"));
         }
+    }
+
+    private void ExportDiagnostics()
+    {
+        string source = latestDiagnosticsFile;
+        if (!File.Exists(source)) {
+            exportDiagnostics.Enabled = false;
+            return;
+        }
+        using (var dialog = new SaveFileDialog {
+            Title = Ui("导出诊断日志", "Export diagnostics"),
+            Filter = Ui("诊断日志 (*.jsonl)|*.jsonl", "Diagnostic log (*.jsonl)|*.jsonl"),
+            DefaultExt = "jsonl", AddExtension = true, FileName = Path.GetFileName(source)
+        }) {
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            try {
+                if (!String.Equals(source, dialog.FileName, StringComparison.OrdinalIgnoreCase))
+                    File.Copy(source, dialog.FileName, true);
+            } catch (IOException) { ShowDiagnosticsExportError(); }
+            catch (UnauthorizedAccessException) { ShowDiagnosticsExportError(); }
+        }
+    }
+
+    private void ShowDiagnosticsExportError()
+    {
+        MessageBox.Show(this, Ui("无法保存诊断日志，请选择可写入的文件夹。", "The diagnostics could not be saved. Choose a writable folder."),
+            Ui("导出诊断日志", "Export diagnostics"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
+    private sealed class TaskDiagnostics
+    {
+        public const string WorkerPrefix = "UI_DIAG ";
+        private const int MaxRecordSize = 2048;
+        private const int MaxFileSize = 256 * 1024;
+        private const int FileLimit = 15;
+        private static readonly Regex Filename = new Regex(@"\Arun-[0-9]{8}T[0-9]{13}Z-[a-f0-9]{32}\.jsonl\z");
+        private static readonly Regex FieldName = new Regex(@"\A[a-z][A-Za-z0-9]{0,34}\z");
+        private static readonly Regex Code = new Regex(@"\A[a-z][a-z0-9_]{0,34}\z");
+        private static readonly Regex DateValue = new Regex(@"\A[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z)?\z");
+        private static readonly HashSet<string> SensitiveFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            "apiKey", "authorization", "body", "content", "cookie", "deviceId", "ip", "keyword", "message", "path", "profile", "title", "url"
+        };
+        private static readonly Encoding Utf8 = new UTF8Encoding(false);
+        private readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = 2 * MaxRecordSize, RecursionLimit = 3 };
+        private readonly StreamWriter writer;
+        private int writtenBytes;
+        private bool writeFailed, truncated;
+
+        private TaskDiagnostics(string path)
+        {
+            FilePath = path;
+            writer = new StreamWriter(new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read), Utf8) {
+                NewLine = "\n", AutoFlush = true
+            };
+        }
+
+        public string FilePath { get; private set; }
+
+        public static TaskDiagnostics Begin(string folder, string version)
+        {
+            TaskDiagnostics diagnostic;
+            string id = Guid.NewGuid().ToString("N");
+            string suffix = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmssfffffff'Z'", CultureInfo.InvariantCulture) + "-" + id;
+            try {
+                Directory.CreateDirectory(folder);
+                diagnostic = new TaskDiagnostics(Path.Combine(folder, "run-" + suffix + ".jsonl"));
+            } catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+
+            diagnostic.Append(new { timestamp = Now(), emitter = "desktop", @event = "run_started", schemaVersion = 1,
+                runId = id, appVersion = version, architecture = Environment.Is64BitProcess ? "x64" : "x86",
+                locale = CultureInfo.CurrentUICulture.Name }, MaxFileSize);
+            try {
+                foreach (FileInfo old in Files(folder).Skip(FileLimit)) TryDelete(old.FullName);
+            } catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            return diagnostic;
+        }
+
+        public static string Latest(string folder)
+        {
+            try {
+                FileInfo latest = Files(folder).FirstOrDefault(file => file.Length > 0);
+                return latest == null ? null : latest.FullName;
+            }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+        }
+
+        private static IEnumerable<FileInfo> Files(string folder)
+        {
+            return new DirectoryInfo(folder).EnumerateFiles("run-*.jsonl")
+                .Where(file => Filename.IsMatch(file.Name) && (file.Attributes & FileAttributes.ReparsePoint) == 0)
+                .OrderByDescending(file => file.Name, StringComparer.Ordinal);
+        }
+
+        public void DesktopEvent(string eventCode, long? elapsedMs = null)
+        {
+            Append(new { timestamp = Now(), emitter = "desktop", @event = eventCode, elapsedMs }, MaxFileSize - MaxRecordSize);
+        }
+
+        public void WorkerEvent(string line)
+        {
+            if (truncated || writeFailed || line.Length > MaxRecordSize) return;
+            Dictionary<string, object> record;
+            try { record = json.Deserialize<Dictionary<string, object>>(line); }
+            catch (ArgumentException) { return; }
+            catch (InvalidOperationException) { return; }
+            catch (FormatException) { return; }
+
+            object code, date;
+            if (record == null || !record.TryGetValue("event", out code) || !(code is string) || !Code.IsMatch((string)code) ||
+                !record.TryGetValue("timestamp", out date) || !(date is string) || !DateValue.IsMatch((string)date) ||
+                record.Any(field => !FieldName.IsMatch(field.Key) || SensitiveFields.Contains(field.Key) || !IsSafeValue(field.Value))) return;
+            record["emitter"] = "worker";
+            if (!Append(record, MaxFileSize - 2 * MaxRecordSize) && !writeFailed) {
+                truncated = true;
+                DesktopEvent("trace_truncated");
+            }
+        }
+
+        private static bool IsSafeValue(object value)
+        {
+            var text = value as string;
+            return value == null || value is int || value is long || value is bool ||
+                (text != null && (Code.IsMatch(text) || DateValue.IsMatch(text)));
+        }
+
+        public void Finish(string outcome, int? exitCode, string errorCategory)
+        {
+            Append(new { timestamp = Now(), emitter = "desktop", @event = "run_ended", outcome, exitCode, errorCategory }, MaxFileSize);
+            try { writer.Dispose(); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
+        private bool Append(object record, int limit)
+        {
+            if (writeFailed) return false;
+            string line = json.Serialize(record);
+            int size = Utf8.GetByteCount(line) + 1;
+            if (size > limit - writtenBytes) return false;
+            try {
+                writer.WriteLine(line);
+                writtenBytes += size;
+                return true;
+            } catch (IOException) { writeFailed = true; }
+            catch (UnauthorizedAccessException) { writeFailed = true; }
+            return false;
+        }
+
+        private static string Now() { return DateTimeOffset.Now.ToString("o", CultureInfo.InvariantCulture); }
     }
 
     private int Verify(string path)

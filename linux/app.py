@@ -45,12 +45,6 @@ APP_NAME = t("小红书舆情监控", "Xiaohongshu Monitor")
 BOTTOM = t("下拉到底", "Scroll to bottom")
 BUILTIN = t("使用内置模板", "Built-in template")
 SORT_OPTIONS = {t("最新", "Latest"): "最新", t("综合", "Relevance"): "综合"}
-TIME_CHOICES = {
-    t("一天内", "Past day · 一天内"): "一天内",
-    t("一周内", "Past week · 一周内"): "一周内",
-    t("半年内", "Past six months · 半年内"): "半年内",
-}
-ANY_TIME = t("不限", "Any time · 不限")
 
 
 def data_home():
@@ -577,32 +571,18 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         panel = ttk.Frame(dialog, padding=18)
         panel.pack()
         ttk.Label(panel, text=text, wraplength=385, justify="left").pack(anchor="w")
-        response = tk.StringVar()
-        time_prompt = "同名时间选项" in text or "same publication time option" in text
-        unrestricted = "此日期可使用不限" in text or "Any time covers this range" in text
-        options = {ANY_TIME: "不限"} if unrestricted else TIME_CHOICES
-        if time_prompt:
-            picker = ttk.Combobox(panel, values=tuple(options), state="readonly", textvariable=response)
-            picker.pack(fill="x", pady=(10, 0))
         buttons = ttk.Frame(panel)
         buttons.pack(fill="x", pady=(14, 0))
         ttk.Button(buttons, text=t("结束任务", "End task"), command=self.stop).pack(side="right")
 
         def answer():
-            ready = options.get(response.get(), "") if time_prompt else "继续"
             self.dismiss_prompt()
-            self.worker.send(json.dumps(ready, ensure_ascii=False))
+            self.worker.send(json.dumps("继续", ensure_ascii=False))
             self.set_progress(t("继续监控…", "Resuming monitoring…"))
 
-        label = t("已应用", "Applied") if time_prompt else t("继续", "Continue")
-        okay = ttk.Button(buttons, text=label, command=answer)
+        okay = ttk.Button(buttons, text=t("继续", "Continue"), command=answer)
         okay.pack(side="right", padx=8)
-        if time_prompt:
-            okay.configure(state="disabled")
-            picker.bind("<<ComboboxSelected>>", lambda _: okay.configure(state="normal"))
-            picker.focus_set()
-        else:
-            okay.focus_set()
+        okay.focus_set()
         dialog.protocol("WM_DELETE_WINDOW", self.stop)
         dialog.grab_set()
 

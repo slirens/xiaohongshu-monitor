@@ -3,7 +3,7 @@ import { openBrowser } from './browser.mjs';
 import { checkAbort } from './cancel.mjs';
 import { collectKeyword } from './collect.mjs';
 import { chinaDate, validDate } from './dates.mjs';
-import { dateFilterCaption, localizePage, t, visibleError } from './i18n.mjs';
+import { localizePage, t, visibleError } from './i18n.mjs';
 import { makeReportSheets, parseReportTemplate } from './report-template.mjs';
 import { buildWorkbook } from './workbook.mjs';
 
@@ -108,19 +108,16 @@ function permissionFor(origin) {
   });
 }
 
-async function ask(text, choices = []) {
+async function ask(text) {
   $('prompt-text').textContent = text;
-  $('prompt-choice').replaceChildren(...choices.map(value => new Option(dateFilterCaption(value), value)));
-  $('prompt-choice-label').hidden = !choices.length;
   $('prompt').hidden = false;
   message(t('等待完成网页操作', 'Waiting for you to finish in the browser tab'));
   await browser.mode('foreground');
   checkAbort(controller.signal);
-  const answer = await new Promise(resolve => { pending = resolve; });
+  await new Promise(resolve => { pending = resolve; });
   $('prompt').hidden = true;
   checkAbort(controller.signal);
   await browser.mode('background');
-  return answer;
 }
 
 function download() {
@@ -136,7 +133,7 @@ function download() {
 $('proceed').addEventListener('click', () => {
   const resolve = pending;
   pending = undefined;
-  resolve?.($('prompt-choice').value);
+  resolve?.();
 });
 $('show-browser').addEventListener('click', () => {
   browser?.mode('foreground').catch(error => message(visibleError(error)));
@@ -145,7 +142,7 @@ $('stop').addEventListener('click', () => {
   controller?.abort(new Error(t('任务已停止', 'Task stopped')));
   const resolve = pending;
   pending = undefined;
-  resolve?.('');
+  resolve?.();
 });
 $('download').addEventListener('click', download);
 

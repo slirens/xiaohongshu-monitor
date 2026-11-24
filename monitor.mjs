@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
@@ -21,6 +21,41 @@ const sentiments = ['正面', '中性', '负面', '混合', '无法判断'];
 const chinaDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' });
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 let reportTemplateModule;
+
+const ignoreDiagnostic = () => {};
+
+function writeDiagnostic(event, fields = {}) {
+  console.log(`UI_DIAG ${JSON.stringify({ timestamp: new Date().toISOString(), event, ...fields })}`);
+}
+
+function elapsedMs(started) {
+  return Math.round(performance.now() - started);
+}
+
+function errorKind(error) {
+  if (error?.name === 'TimeoutError') return 'timeout';
+  if (error instanceof DefaultBrowserError) return error.reason;
+  if (error instanceof BrowserInteractionRequired) return 'browser_interaction_required';
+  if (error instanceof SearchFilterError) return 'automatic_filter_failed';
+  if (error instanceof TaskEnded) return 'stopped';
+  const code = error?.code;
+  const message = typeof error?.message === 'string' ? error.message : '';
+  if (code === 'ENOENT' || /executable doesn't exist|distribution .* is not found/i.test(message)) return 'not_found';
+  if (code === 'EACCES' || code === 'EPERM') return 'permission_denied';
+  if (code === 'ENOSPC') return 'disk_full';
+  if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') return 'missing_component';
+  const apiStatus = Number(message.match(/^[a-z]+ API HTTP (\d{3})$/i)?.[1]);
+  if (apiStatus === 401 || apiStatus === 403) return 'api_access_denied';
+  if (apiStatus === 404) return 'api_not_found';
+  if (apiStatus === 429) return 'api_rate_limited';
+  if (apiStatus >= 500) return 'api_server_error';
+  const network = message.match(/net::(ERR_[A-Z_]+)/)?.[1];
+  if (network && /TIMED_OUT/.test(network)) return 'timeout';
+  if (network) return 'navigation_error';
+  if (/target.*(?:closed|crashed)|page.*(?:closed|crashed)/i.test(message)) return 'page_closed';
+  if (/user data directory is already in use|processsingleton/i.test(message)) return 'profile_in_use';
+  return 'error';
+}
 
 function reportTemplateRuntime() {
   if (!reportTemplateModule) {
@@ -76,20 +111,32 @@ function selectNotes(notes, start, end, keyword) {
   const seen = new Set();
   const matched = [];
   let unknownDates = 0;
+  let keywordMismatch = 0;
+  let outsideRange = 0;
+  let duplicates = 0;
   for (const note of notes) {
-    if (![note.title, note.body].join(' ').toLowerCase().includes(keyword.toLowerCase())) continue;
+    if (![note.title, note.body].join(' ').toLowerCase().includes(keyword.toLowerCase())) {
+      keywordMismatch++;
+      continue;
+    }
     if (!validDate(note.date)) {
       unknownDates++;
       continue;
     }
-    if (note.date < start || note.date > end) continue;
+    if (note.date < start || note.date > end) {
+      outsideRange++;
+      continue;
+    }
     const key = note.id ?? note.url?.match(/\/(?:explore|search_result|discovery\/item)\/([a-f0-9]{24})(?:[/?#]|$)/i)?.[1]
       ?? (note.url ? note.url.split('?')[0] : JSON.stringify([note.date, note.title, note.body]));
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      duplicates++;
+      continue;
+    }
     seen.add(key);
     matched.push(note);
   }
-  return { matched, unknownDates };
+  return { matched, unknownDates, keywordMismatch, outsideRange, duplicates };
 }
 
 function xhsNoteAddress(value) {
@@ -135,82 +182,161 @@ function presetsCovering(start, now = new Date(), allowUnrestricted = false) {
   return !presets.length && allowUnrestricted ? [[Infinity, /^(?:不限|全部|任意时间)$/]] : presets;
 }
 
-async function applySearchFilters(page, { start, end, sort, screens }, ask) {
+const diagnosticSorts = new Map([
+  ['最新', 'latest'], ['综合', 'relevance'], ['最多点赞', 'most_liked'],
+  ['最多评论', 'most_commented'], ['最多收藏', 'most_saved'],
+]);
+const diagnosticSort = sort => diagnosticSorts.get(sort) ?? 'unknown';
+
+function diagnosticTime(label) {
+  if (typeof label !== 'string') return 'unknown';
+  if (/^(?:不限|全部|任意时间)$/.test(label)) return 'any_time';
+  return ['day', 'week', 'six_months'][timePresets.findIndex(([, pattern]) => pattern.test(label))] ?? 'unknown';
+}
+
+function classifyFilterFailure(error) {
+  if (error?.name !== 'TimeoutError') return errorKind(error);
+  const hints = [
+    [/intercepts pointer events|intercepted by another/i, 'pointer_intercepted'],
+    [/not attached|detached from|element was removed/i, 'control_detached'],
+    [/outside of the viewport|outside the viewport/i, 'outside_viewport'],
+    [/element is not stable|element is moving/i, 'control_moving'],
+    [/element is not enabled|element is disabled/i, 'control_disabled'],
+    [/element is not visible|element is hidden/i, 'control_hidden'],
+  ];
+  for (const line of (error.message ?? '').split('\n').reverse()) {
+    const hint = hints.find(([pattern]) => pattern.test(line));
+    if (hint) return hint[1];
+  }
+  return 'no_actionability_detail';
+}
+
+function filterOptionHit(element) {
+  const bounds = element.getBoundingClientRect();
+  const left = Math.max(0, bounds.left);
+  const right = Math.min(innerWidth, bounds.right);
+  const top = Math.max(0, bounds.top);
+  const bottom = Math.min(innerHeight, bounds.bottom);
+  if (left >= right || top >= bottom) return 'outside_viewport';
+  const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+  const control = element.closest('button, [role="button"], [role="radio"], [role="option"]') ?? element;
+  return !hit ? 'no_hit' : control.contains(hit) ? 'option' : 'other_element';
+}
+
+async function applySearchFilters(page, {
+  start, sort, screens, observe = ignoreDiagnostic, checkAccess = ignoreDiagnostic,
+}) {
   const filterText = /^(?:筛选|已筛选|搜索筛选)$/;
   const menu = page.getByRole('button', { name: filterText }).or(page.getByText(filterText)).filter({ visible: true }).first();
   const panel = page.getByText('发布时间', { exact: true }).filter({ visible: true }).first()
-    .locator('xpath=ancestor::*[.//*[normalize-space(text())="排序依据"]][1]');
+    .locator('xpath=ancestor::*[.//*[normalize-space(.)="排序依据"]][1]');
   const sortOption = panel.getByText(sort, { exact: true }).filter({ visible: true }).first();
-  const timeOptions = page.locator('xpath=//*[preceding::*[normalize-space(text())="发布时间" or normalize-space(text())="排序依据" or normalize-space(text())="笔记类型" or normalize-space(text())="搜索范围" or normalize-space(text())="位置距离"][1][normalize-space(text())="发布时间"]]');
+  const groupHeadings = ['排序依据', '笔记类型', '发布时间', '搜索范围', '位置距离', '发布地点'];
+  const groupBoundary = groupHeadings.map(heading => `normalize-space(.)="${heading}"`).join(' or ');
+  const timeOptions = panel.locator(`xpath=.//*[preceding::*[${groupBoundary}][1][normalize-space(.)="发布时间"]]`);
   const eligible = presetsCovering(start, new Date(), sort === '最新' && screens === 'bottom');
-  if (!eligible.length) throw new Error(ui('目标开始日期超出网页「半年内」可覆盖的范围，未读取笔记。', 'The start date is outside the past six months. No notes were read.'));
-  const unrestricted = eligible[0][0] === Infinity;
+  const started = performance.now();
+  observe('filter_started', { requestedSort: diagnosticSort(sort), eligiblePresets: eligible.length });
+  if (!eligible.length) {
+    observe('filter_failed', { stage: 'check_range', reason: 'range_not_supported', elapsedMs: elapsedMs(started) });
+    throw new SearchFilterError(ui('目标开始日期超出网页「半年内」可覆盖的范围，未读取笔记。', 'The start date is outside the past six months. No notes were read.'));
+  }
   let stage = '打开筛选面板';
-  let selected;
+  let stageCode = 'open_panel';
+  let operation, activeOption;
+  const recordFailure = async error => {
+    if (observe === ignoreDiagnostic) return;
+    // The click error describes Playwright's attempts. The DOM snapshot is taken after they end.
+    const [menuVisible, panelVisible, optionHit] = await Promise.all([
+      menu.isVisible().catch(() => undefined),
+      panel.isVisible().catch(() => undefined),
+      activeOption?.evaluate(filterOptionHit, undefined, { timeout: 150 }).catch(() => 'unavailable'),
+    ]);
+    observe('filter_action_failed', { stage: stageCode, operation, cause: classifyFilterFailure(error),
+      menuVisible, panelVisible, optionHit });
+  };
   const openMenu = async () => {
-    try { await menu.hover({ timeout: 3500 }); }
-    catch (error) {
+    await checkAccess();
+    operation = 'hover_menu';
+    try {
+      await menu.hover({ timeout: 3500 });
+      observe('filter_menu_action', { action: 'hover' });
+    } catch (error) {
       if (error.name !== 'TimeoutError') throw error;
+      await recordFailure(error);
+      await checkAccess();
+      operation = 'click_menu';
       await menu.click({ timeout: 6000 });
+      observe('filter_menu_action', { action: 'click_fallback' });
     }
+    await checkAccess();
   };
   const reveal = async option => {
+    activeOption = option;
+    await checkAccess();
+    operation = 'find_option';
     if (await option.isVisible()) return;
     await openMenu();
     if (!await option.isVisible()) {
+      await checkAccess();
+      operation = 'click_menu';
       await menu.click({ timeout: 3000 });
+      observe('filter_menu_action', { action: 'click_fallback' });
     }
   };
   const choose = async option => {
+    await checkAccess();
+    operation = 'click_option';
     try {
       await option.click({ timeout: 2000 });
+      observe('filter_option_action', { stage: stageCode, action: 'click' });
     } catch (error) {
       if (error.name !== 'TimeoutError') throw error;
+      await recordFailure(error);
+      observe('filter_option_retry', { stage: stageCode, reason: 'timeout' });
       await reveal(option);
+      await checkAccess();
+      operation = 'dom_click_option';
       await option.evaluate(element => element.click(), undefined, { timeout: 3000 });
+      observe('filter_option_action', { stage: stageCode, action: 'dom_click_fallback' });
     }
+    await checkAccess();
   };
   try {
     await openMenu();
     stage = `选择「${sort}」排序`;
+    stageCode = 'select_sort';
     await reveal(sortOption);
     await choose(sortOption);
     stage = '查找可覆盖目标日期的发布时间选项';
+    stageCode = 'find_time_options';
     for (const [, label] of eligible) {
       const option = panel.getByText(label).and(timeOptions).filter({ visible: true }).first();
       await reveal(option);
       if (!await option.isVisible()) continue;
+      operation = 'read_option';
       const chosen = (await option.innerText({ timeout: 5000 })).trim();
       stage = `选择发布时间「${chosen}」`;
+      stageCode = 'select_time';
       await choose(option);
-      selected = chosen;
-      break;
+      await page.mouse.move(0, 0);
+      observe('filter_applied', { requestedSort: diagnosticSort(sort), requestedTime: diagnosticTime(chosen),
+        elapsedMs: elapsedMs(started) });
+      return chosen;
     }
+    throw new Error(ui('当前没有覆盖目标日期的发布时间选项。', 'No publication time option covers the requested date range.'));
   } catch (error) {
-    console.log(ui(`网页筛选在「${stage}」阶段中断：${error.message.split('\n')[0]}`, `Could not apply the search filters: ${error.message.split('\n')[0]}`));
+    if (error instanceof SearchAccessRequired) throw error;
+    await checkAccess();
+    await recordFailure(error);
+    observe('filter_failed', { stage: stageCode, reason: errorKind(error), elapsedMs: elapsedMs(started) });
+    throw new SearchFilterError(ui(`自动筛选失败（${stage}），已跳过此关键词。`, 'Automatic filter selection failed. Skipped this keyword.'), { cause: error });
   }
-  if (!selected) {
-    console.log(ui(`请在浏览器的筛选面板里选择「${sort}」排序及能覆盖 ${start} 至 ${end} 的发布时间范围。`, `Set sorting to ${sortName(sort)} and choose a publication range covering ${start} to ${end}.`));
-    while (true) {
-      const confirmed = await ask(ui(
-        `先在浏览器应用「${sort}」及覆盖 ${start} 至 ${end} 的发布时间。应用后选择同名时间选项${unrestricted ? '，此日期可使用不限' : ''}；无合适选项请结束任务：`,
-        `In the browser, apply ${sortName(sort)} and a publication date filter covering ${start} to ${end}. Then choose the same publication time option below.${unrestricted ? ' Any time covers this range.' : ''} End the task if no option covers the date range.`,
-      ));
-      if (!confirmed || (!unrestricted && /^(不限|全部|任意时间)$/.test(confirmed))) {
-        throw new Error(ui('尚未应用能覆盖目标日期的网页时间筛选，未读取笔记。', 'No publication date filter covering the requested range was applied.'));
-      }
-      if (eligible.some(([, label]) => label.test(confirmed))) {
-        return `手动确认 · ${confirmed}`;
-      }
-      console.log(ui(`「${confirmed}」可能漏掉目标日期开头的笔记，请改选更宽的时间范围。`, `“${timeName(confirmed)}” may miss notes at the start of the range. Choose a wider filter.`));
-    }
-  }
-  // Leave the filter popover and allow the filtered results to refresh.
-  await page.mouse.move(0, 0);
-  return selected;
 }
 
 class BrowserInteractionRequired extends Error {}
+class SearchAccessRequired extends BrowserInteractionRequired {}
+class SearchFilterError extends Error {}
 class TaskEnded extends Error {}
 
 function selectBrowser(progId) {
@@ -218,29 +344,94 @@ function selectBrowser(progId) {
   return { name: 'Microsoft Edge', channel: 'msedge', profile: '.edge-session' };
 }
 
-function windowsBrowser() {
-  let progId = '';
-  try {
-    const result = execFileSync('reg.exe', [
-      'query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice', '/v', 'ProgId',
-    ], { encoding: 'utf8', windowsHide: true, timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] });
-    progId = result.match(/\bProgId\s+REG_SZ\s+(\S+)/i)?.[1] ?? '';
-  } catch {}
-  if (!/^(?:ChromeHTML|MSEdgeHTM)/i.test(progId)) {
-    console.log(ui('默认浏览器未识别为 Chrome 或 Edge，正在查找可用的浏览器。', 'Looking for an available Chromium browser.'));
+const windowsBrowserExecutables = new Map([
+  ['chrome.exe', selectBrowser('ChromeHTML')],
+  ['msedge.exe', selectBrowser('MSEdgeHTM')],
+  ['360se.exe', { id: '360se', name: ui('360 安全浏览器', '360 Secure Browser'), profile: '.360se-session' }],
+  ['360chrome.exe', { id: '360chrome', name: ui('360 极速浏览器', '360 Extreme Browser'), profile: '.360chrome-session' }],
+  ['360chromex.exe', { id: '360chromex', name: ui('360 极速浏览器 X', '360 Extreme Browser X'), profile: '.360chromex-session' }],
+]);
+
+const browserId = browser => browser.id ?? browser.channel ?? 'chromium';
+
+class DefaultBrowserError extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.reason = reason;
   }
-  return selectBrowser(progId);
 }
 
-function windowsBrowserCandidates(chromium) {
-  const preferred = windowsBrowser();
+function windowsBrowserProgId() {
+  const key = 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations';
+  for (const protocol of ['https', 'http']) {
+    for (const choice of ['UserChoiceLatest\\ProgId', 'UserChoiceLatest', 'UserChoice']) {
+      try {
+        const result = execFileSync('reg.exe', [
+          'query', `${key}\\${protocol}\\${choice}`, '/v', 'ProgId',
+        ], { encoding: 'utf8', windowsHide: true, timeout: 750, stdio: ['ignore', 'pipe', 'ignore'] });
+        const assigned = result.match(/\bProgId\s+REG_(?:EXPAND_)?SZ\s+(\S+)/i)?.[1];
+        if (assigned && !/^(?:unknown|https?)$/i.test(assigned)) return { assigned, protocol };
+      } catch {}
+    }
+  }
+  return { assigned: '' };
+}
+
+function windowsBrowserCommand(progId) {
+  if (!/^[a-z0-9_.-]+$/i.test(progId)) return '';
+  try {
+    const result = execFileSync('reg.exe', [
+      'query', `HKCR\\${progId}\\shell\\open\\command`, '/ve',
+    ], { encoding: 'utf8', windowsHide: true, timeout: 750, stdio: ['ignore', 'pipe', 'ignore'] });
+    const command = result.match(/\bREG_(?:EXPAND_)?SZ[ \t]+([^\r\n]+)/i)?.[1]?.trim();
+    const executable = command?.match(/^"([^"]+\.exe)"(?=\s|$)|^([^"].*?\.exe)(?=\s|$)/i);
+    return (executable?.[1] ?? executable?.[2] ?? '').replace(/%([^%]+)%/g, (token, name) => process.env[name] ?? token);
+  } catch {
+    return '';
+  }
+}
+
+function windowsBrowserCandidates(chromium, observe) {
+  const shellExecutable = process.env.XHS_DEFAULT_BROWSER_EXE?.trim().replace(/^"(.*)"$/, '$1');
+  const { assigned, protocol } = shellExecutable ? {} : windowsBrowserProgId();
+  const source = shellExecutable ? 'windows_association' : 'windows_registry';
+  if (shellExecutable || assigned) {
+    const registryChannel = assigned && /^(?:ChromeHTML|MSEdgeHTM)/i.test(assigned) ? selectBrowser(assigned) : null;
+    const registeredExecutable = shellExecutable || (registryChannel ? '' : windowsBrowserCommand(assigned));
+    const selected = registryChannel ?? windowsBrowserExecutables.get(basename(registeredExecutable).toLowerCase());
+    if (!selected) {
+      observe('default_browser_detected', { browser: 'unsupported', source, protocol });
+      throw new DefaultBrowserError('default_browser_unsupported', ui(
+        '当前 Windows 默认浏览器不受支持。请在「设置 → 应用 → 默认应用」中选择 Chrome、Edge 或 360 浏览器，然后重试。',
+        'This Windows default browser is not supported. In Settings → Apps → Default apps, choose Chrome, Edge, or a 360 browser and try again.'));
+    }
+    let exactExecutable;
+    if (isAbsolute(registeredExecutable)) {
+      try {
+        if (statSync(registeredExecutable, { throwIfNoEntry: false })?.isFile()) exactExecutable = registeredExecutable;
+      } catch {}
+    }
+    const preferred = { ...selected, systemDefault: true };
+    observe('default_browser_detected', { browser: browserId(preferred), source, protocol, exactExecutable: Boolean(exactExecutable) });
+    console.log(ui(`Windows 默认浏览器：${preferred.name}。`, `Windows default browser: ${preferred.name}.`));
+    if (!preferred.channel && !exactExecutable) {
+      throw new DefaultBrowserError('default_browser_executable_missing', ui(
+        `Windows 关联的 ${preferred.name} 程序路径不可用。请修复浏览器安装并重新设置为默认浏览器。`,
+        `The Windows association for ${preferred.name} does not point to an available executable. Repair the browser and set it as the default again.`));
+    }
+    return [...(exactExecutable ? [{ ...preferred, executablePath: exactExecutable }] : []), ...(preferred.channel ? [preferred] : [])];
+  }
+
+  observe('default_browser_detected', { browser: 'undetected' });
+  console.log(ui('未读取到 Windows 默认浏览器，正在查找可用的 Edge 或 Chrome。',
+    'Windows did not report a default browser. Looking for an available Edge or Chrome browser.'));
   const browserFolder = process.arch === 'ia32' ? 'chrome-win32' : 'chrome-win64';
   const packagedChrome = join(dirname(process.execPath), 'browser', browserFolder, 'chrome.exe');
   const bundled = existsSync(packagedChrome) ? packagedChrome :
     process.arch === 'ia32' ? null : chromium.executablePath();
-  return [preferred,
+  return [selectBrowser('MSEdgeHTM'),
     ...(bundled && existsSync(bundled) ? [{ name: 'Chromium', executablePath: bundled, profile: '.chromium-session' }] : []),
-    selectBrowser(preferred.channel === 'chrome' ? 'MSEdgeHTM' : 'ChromeHTML')];
+    selectBrowser('ChromeHTML')];
 }
 
 function linuxBrowserCandidates(chromium) {
@@ -254,52 +445,118 @@ function linuxBrowserCandidates(chromium) {
   ];
 }
 
-async function collect(keyword, range, ask, background = false) {
+async function launchBrowser(range, background, observe) {
   const signal = range.signal;
-  signal?.throwIfAborted();
   const linux = process.platform === 'linux';
   const bundledPath = join(dirname(process.execPath), 'browsers');
   if (!linux && existsSync(bundledPath)) {
     process.env.PLAYWRIGHT_BROWSERS_PATH = bundledPath;
   }
-  const { chromium } = require('playwright');
+  const driverStarted = performance.now();
+  let chromium;
+  try {
+    ({ chromium } = require('playwright'));
+  } catch (error) {
+    observe('runtime_load_failed', { stage: 'browser_driver', reason: errorKind(error), elapsedMs: elapsedMs(driverStarted) });
+    throw error;
+  }
+  observe('browser_driver_ready', { elapsedMs: elapsedMs(driverStarted) });
   const browserEnv = { ...process.env };
   delete browserEnv.XHS_AI_KEY;
   delete browserEnv.OPENAI_API_KEY;
-  const candidates = linux ? linuxBrowserCandidates(chromium) : windowsBrowserCandidates(chromium);
-  let context, browser, headless, marker;
-  for (const candidate of candidates) {
+  delete browserEnv.XHS_DEFAULT_BROWSER_EXE;
+  const candidates = linux ? linuxBrowserCandidates(chromium) : windowsBrowserCandidates(chromium, observe);
+  for (const [index, browser] of candidates.entries()) {
     signal?.throwIfAborted();
-    browser = candidate;
-    marker = join(root, browser.profile, '.search-ready');
-    headless = background && !range.presentation && existsSync(marker);
+    const marker = join(root, browser.profile, '.search-ready');
+    const headless = background && !range.presentation && existsSync(marker);
+    const launch = { browser: browserId(browser), attempt: index + 1, headless };
+    const launchStarted = performance.now();
+    observe('browser_launch_started', launch);
     console.log(headless ? ui(`正在后台启动 ${browser.name}…`, `Starting ${browser.name} in the background…`) :
       ui(`正在打开专用 ${browser.name} 窗口…`, `Opening a dedicated ${browser.name} window…`));
     try {
-      context = await chromium.launchPersistentContext(join(root, browser.profile), {
+      const context = await chromium.launchPersistentContext(join(root, browser.profile), {
         channel: browser.channel, executablePath: browser.executablePath, headless, viewport: null, timeout: 20000, env: browserEnv,
         ...(linux ? { chromiumSandbox: true } : {}),
       });
-      break;
+      observe('browser_launch_succeeded', { ...launch, elapsedMs: elapsedMs(launchStarted) });
+      const session = { context, browser, headless, marker, closed: false };
+      context.once('close', () => { session.closed = true; });
+      return session;
     } catch (error) {
+      observe('browser_launch_failed', { ...launch, reason: errorKind(error), elapsedMs: elapsedMs(launchStarted) });
       const details = linux ? error.message.match(/(?:No usable sandbox[^\n]*|Missing X server or \$DISPLAY[^\n]*|error while loading shared libraries:[^\n]*)/)?.[0] : '';
       console.log(ui(`${browser.name} 启动失败：${details || error.message.split('\n')[0]}`, `Could not start ${browser.name}: ${error.message.split('\n')[0]}`));
     }
   }
-  if (!context) throw new Error(linux
+  if (candidates[0]?.systemDefault) {
+    const { channel, name } = candidates[0];
+    if (!channel) {
+      throw new DefaultBrowserError('default_browser_launch_failed', ui(
+        `${name} 未能建立 Chromium 自动化连接。请更新浏览器、使用极速模式，并关闭此前的监控窗口后重试。`,
+        `Could not establish a Chromium automation connection with ${name}. Update the browser, use Chromium mode, and close earlier monitoring windows before trying again.`));
+    }
+    throw new DefaultBrowserError('default_browser_launch_failed', ui(
+      `Windows 默认浏览器 ${name} 启动失败。请确认浏览器已正确安装，关闭此前的监控窗口后重试。`,
+      `The Windows default browser, ${name}, failed to start. Check its installation and close earlier monitoring windows before trying again.`));
+  }
+  throw new Error(linux
     ? ui('没有可启动的浏览器。请安装 Google Chrome、Microsoft Edge 或系统 Chromium，再用普通用户在图形桌面启动程序。',
         'Could not launch a browser. Install Chrome, Edge, or Chromium, then run the app as a regular desktop user.')
     : ui('没有可启动的浏览器。请安装适用于此系统的 Microsoft Edge 或 Google Chrome，关闭此前运行的监控程序后重试。',
         'Could not launch a browser. Install Chrome or Edge, close earlier monitoring windows, and try again.'));
+}
+
+async function closeBrowserSession(session) {
+  if (!session) return;
+  await session.releasePresentation?.();
+  await session.context.close().catch(() => {});
+}
+
+async function collect(keyword, range, ask, background = false) {
+  const signal = range.signal;
+  signal?.throwIfAborted();
+  const observe = range.observe ?? ignoreDiagnostic;
+  const started = performance.now();
+  const shared = range.browserSession;
+  let browserSession = shared?.current;
+  if (browserSession && (browserSession.closed || browserSession.searchCrashed || browserSession.search?.isClosed() ||
+      (!background && browserSession.headless))) {
+    shared.current = null;
+    await closeBrowserSession(browserSession);
+    browserSession = null;
+  }
+  if (browserSession) {
+    const { browser, headless } = browserSession;
+    observe('browser_reused', { browser: browserId(browser), headless });
+    console.log(ui(`复用已打开的 ${browser.name} 窗口…`, `Reusing the open ${browser.name} window…`));
+  } else {
+    browserSession = await launchBrowser(range, background, observe);
+    if (shared) shared.current = browserSession;
+  }
+  const { context, browser, headless, marker } = browserSession;
   const abortBrowser = () => { void context.close().catch(() => {}); };
-  let detachPresentation;
+  let detailPage;
+  let stage = 'setup_window';
   signal?.addEventListener('abort', abortBrowser, { once: true });
   try {
     signal?.throwIfAborted();
-    const search = context.pages()[0] ?? await context.newPage();
-    if (range.presentation && !headless) {
+    if (!browserSession.search) {
+      browserSession.search = context.pages()[0] ?? await context.newPage();
+      browserSession.search.once('crash', () => { browserSession.searchCrashed = true; });
+    }
+    const search = browserSession.search;
+    const positionBrowser = async () => {
+      if (!range.presentation || headless || browserSession.releasePresentation) return;
       const session = await context.newCDPSession(search);
-      const { windowId } = await session.send('Browser.getWindowForTarget');
+      let windowId;
+      try {
+        ({ windowId } = await session.send('Browser.getWindowForTarget'));
+      } catch (error) {
+        await session.detach().catch(() => {});
+        throw error;
+      }
       let queue = Promise.resolve();
       const setWindow = mode => {
         queue = queue.then(async () => {
@@ -315,59 +572,122 @@ async function collect(keyword, range, ask, background = false) {
         return queue;
       };
       range.presentation.apply = setWindow;
-      detachPresentation = () => { range.presentation.apply = null; };
+      browserSession.releasePresentation = async () => {
+        if (range.presentation.apply === setWindow) range.presentation.apply = null;
+        await queue;
+        await session.detach().catch(() => {});
+      };
       await setWindow(range.presentation.mode);
-    }
+    };
     const searchUrl = new URL('https://www.xiaohongshu.com/search_result');
     searchUrl.searchParams.set('keyword', keyword);
     const verifySearch = url => url.origin === searchUrl.origin &&
       url.pathname === '/search_result' && url.searchParams.get('keyword') === keyword;
-    const login = search.getByText(/扫码登录|登录后查看更多|安全验证|请完成验证/).filter({ visible: true }).first();
-    const resultLink = search.locator('a[href*="/explore/"], a[href*="/search_result/"], a[href*="/discovery/item/"]').first();
+    const loginHeading = /^(?:登录后查看搜索结果|登录后查看更多(?:内容|笔记|搜索结果)?|扫码登录|手机号登录|安全验证|请完成(?:安全)?验证|Log in to view search results|Sign in to view search results)[。！!]?$/i;
+    const login = search.getByText(loginHeading).or(search.getByPlaceholder('输入手机号', { exact: true }))
+      .filter({ visible: true }).first();
+    const resultLink = search.locator('a[href*="/explore/"], a[href*="/search_result/"], a[href*="/discovery/item/"]')
+      .filter({ visible: true }).first();
+    const needsSearchAccess = async () => {
+      const pageUrl = new URL(search.url());
+      return (pageUrl.origin === searchUrl.origin &&
+        /^\/(?:login|website-login\/(?:login|verify))(?:\/|$)/.test(pageUrl.pathname)) || await login.isVisible();
+    };
+    const checkAccess = async () => {
+      signal?.throwIfAborted();
+      if (await needsSearchAccess()) throw new SearchAccessRequired(ui(
+        '小红书需要登录或完成网页验证。', 'Xiaohongshu requires sign-in or verification.'));
+    };
+    let navigationAttempt = 0;
     const openResults = async () => {
-      await search.goto(searchUrl.href, { waitUntil: 'commit', timeout: 25000 });
-      await Promise.any([
-        resultLink.waitFor({ state: 'visible', timeout: 12000 }),
-        login.waitFor({ state: 'visible', timeout: 12000 }),
-        search.getByText(/^(?:筛选|已筛选)$/).first().waitFor({ state: 'visible', timeout: 12000 }),
-      ]).catch(() => {});
+      const attempt = ++navigationAttempt;
+      const navigationStarted = performance.now();
+      try {
+        const response = await search.goto(searchUrl.href, { waitUntil: 'commit', timeout: 25000 });
+        const readiness = await Promise.any([
+          resultLink.waitFor({ state: 'visible', timeout: 12000 }).then(() => 'results'),
+          login.waitFor({ state: 'visible', timeout: 12000 }).then(() => 'sign_in_or_verification'),
+          search.getByText(/^(?:筛选|已筛选)$/).first().waitFor({ state: 'visible', timeout: 12000 }).then(() => 'filter_button'),
+        ]).catch(() => 'not_ready');
+        const current = new URL(search.url());
+        const page = verifySearch(current) ? 'expected_search' :
+          current.origin !== searchUrl.origin ? 'other_origin' :
+          current.pathname.startsWith('/website-login/') ? 'account_or_security' : 'other_xhs_page';
+        observe('search_page', { attempt, readiness, page, httpStatus: response?.status(), elapsedMs: elapsedMs(navigationStarted) });
+      } catch (error) {
+        observe('search_navigation_failed', { attempt, reason: errorKind(error), elapsedMs: elapsedMs(navigationStarted) });
+        throw error;
+      }
     };
-    console.log(ui(`正在打开「${keyword}」的搜索结果页…`, `Opening search results for “${keyword}”…`));
-    try {
-      await openResults();
-    } catch (error) {
-      if (error.name !== 'TimeoutError') throw error;
-      console.log(ui('搜索结果页连接超时，正在重试一次…', 'The search page took too long to load. Retrying…'));
-      await openResults();
-    }
-    if (!verifySearch(new URL(search.url())) || await login.isVisible()) {
-      if (headless) throw new BrowserInteractionRequired(ui('小红书需要登录或验证', 'Xiaohongshu requires sign-in or verification'));
-      await range.presentation?.apply?.('foreground');
-      await ask(ui(`尚未进入搜索结果页。请在 ${browser.name} 完成扫码登录或网页验证，再回到程序点击继续：`,
-        `Sign in or complete the site's verification in ${browser.name}, then return to the app and click Continue.`));
-      await openResults();
-    }
-    if (await login.isVisible()) throw new Error(ui('小红书仍显示登录或验证提示，请确认扫码完成后再试。', 'Xiaohongshu still requires sign-in or verification. Complete it and try again.'));
-    if (!verifySearch(new URL(search.url()))) throw new Error(ui(`未进入指定关键词的搜索结果页（当前页面：${new URL(search.url()).pathname}）。`,
-      `The browser did not reach the requested search results (${new URL(search.url()).pathname}).`));
-    console.log(ui(`已打开小红书搜索结果：${keyword}`, `Opened Xiaohongshu results for “${keyword}”.`));
-    const filterAsk = headless ? async () => {
-      throw new BrowserInteractionRequired(ui('网页筛选需要手动确认', 'The website filters need manual confirmation'));
-    } : async prompt => {
-      await range.presentation?.apply?.('foreground');
-      return ask(prompt);
+    const loadSearchPage = async () => {
+      console.log(ui(`正在打开「${keyword}」的搜索结果页…`, `Opening search results for “${keyword}”…`));
+      try {
+        await openResults();
+      } catch (error) {
+        if (error.name !== 'TimeoutError') throw error;
+        signal?.throwIfAborted();
+        console.log(ui('搜索结果页连接超时，正在重试一次…', 'The search page took too long to load. Retrying…'));
+        await openResults();
+      }
     };
-    const pageFilter = await applySearchFilters(search, range, filterAsk);
+    const [position, navigation] = await Promise.allSettled([positionBrowser(), loadSearchPage()]);
+    if (position.status === 'rejected') throw position.reason;
+    stage = 'search_page';
+    if (navigation.status === 'rejected') throw navigation.reason;
+    const waitForAccess = async error => {
+      if (headless) throw error;
+      const waitingSince = performance.now();
+      let attempt = 0;
+      do {
+        signal?.throwIfAborted();
+        observe('search_interaction_requested', { attempt: ++attempt, stage, headless });
+        await range.presentation?.apply?.('foreground');
+        const response = await ask(ui(
+          `小红书需要登录或完成网页验证。${attempt > 1 ? '网页仍在等待登录。' : ''}请在 ${browser.name} 完成扫码登录或网页验证，等弹窗消失后，回到程序继续。${range.presentation ? '' : '回车继续，输入 Q 结束。'}`,
+          `Xiaohongshu requires sign-in or verification. ${attempt > 1 ? 'The site is still waiting for sign-in. ' : ''}Complete sign-in or verification in ${browser.name}, wait for the dialog to close, then continue.${range.presentation ? '' : ' Press Enter to continue or type Q to end the task.'}`,
+        ));
+        if (range.presentation ? response !== '继续' : /^q$/i.test(response)) {
+          throw new TaskEnded(ui('已结束等待登录。', 'Sign-in was cancelled.'));
+        }
+        if (!verifySearch(new URL(search.url()))) await openResults();
+        else await login.waitFor({ state: 'hidden', timeout: 2500 }).catch(error => {
+          if (error.name !== 'TimeoutError') throw error;
+        });
+      } while (await needsSearchAccess());
+      if (verifySearch(new URL(search.url()))) observe('search_access_restored', { elapsedMs: elapsedMs(waitingSince) });
+    };
+    let pageFilter;
+    while (true) {
+      try {
+        await checkAccess();
+        const current = new URL(search.url());
+        if (!verifySearch(current)) throw new Error(ui(`未进入指定关键词的搜索结果页（当前页面：${current.pathname}）。`,
+          `The browser did not reach the requested search results (${current.pathname}).`));
+        console.log(ui(`已打开小红书搜索结果：${keyword}`, `Opened Xiaohongshu results for “${keyword}”.`));
+        stage = 'verify_filters';
+        pageFilter = await applySearchFilters(search, { ...range, checkAccess });
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        await checkAccess();
+        break;
+      } catch (error) {
+        if (!(error instanceof SearchAccessRequired)) throw error;
+        await waitForAccess(error);
+      }
+    }
     console.log(ui(`网页发布时间筛选：${pageFilter}；排序：${range.sort}。开始检查筛选后的结果。`,
       `Publication filter: ${timeName(pageFilter)} · Sort: ${sortName(range.sort)}. Checking results.`));
-    await new Promise(resolve => setTimeout(resolve, 1200));
     const links = new Map();
     const toBottom = range.screens === 'bottom';
     const stopAtStart = toBottom && range.sort === '最新';
     let stable = 0;
     let previousView = '';
+    let screensScanned = 0;
+    let stopReason = 'screen_limit';
+    const scanStarted = performance.now();
+    stage = 'scan_cards';
+    observe('scan_started', { toBottom, stopAtStart });
     for (let screen = 1; toBottom || screen <= range.screens; screen++) {
-      signal?.throwIfAborted();
+      await checkAccess();
       if (!verifySearch(new URL(search.url()))) {
         throw new Error(ui('小红书页面已离开指定关键词的搜索结果，请重新运行。', 'The browser left the requested search results. Run the task again.'));
       }
@@ -383,22 +703,29 @@ async function collect(keyword, range, ask, background = false) {
             element.innerText?.trim() || element.getAttribute('datetime') || '').filter(Boolean) };
         }));
       let olderDate;
+      const displayedAt = new Date();
       for (const { href, labels } of visibleLinks) {
         const url = new URL(href);
         const id = url.pathname.match(/^\/(?:explore|search_result|discovery\/item)\/([a-f0-9]{24})\/?$/i)?.[1];
         if (url.origin !== searchUrl.origin || !id) continue;
         const existing = links.get(id);
-        const date = labels.map(label => parseDisplayedDate(label)).find(Boolean);
+        const parsed = labels.map(label => ({ label, date: parseDisplayedDate(label, displayedAt) }))
+          .find(value => value.date);
+        const date = parsed?.date;
         if (stopAtStart && date && date < range.start) olderDate ??= date;
         links.set(id, {
           href: !existing || (!existing.href.includes('xsec_token=') && url.searchParams.has('xsec_token')) ? href : existing.href,
           date: date ?? existing?.date,
+          dateLabel: parsed?.label ?? existing?.dateLabel,
+          hasDateLabel: labels.length > 0 || existing?.hasDateLabel,
         });
       }
+      screensScanned = screen;
       const screenLabel = `${screen}${toBottom ? '' : `/${range.screens}`}`;
       console.log(ui(`扫描「${keyword}」 · 第 ${screenLabel} 屏 · 候选 ${links.size} 条`,
         `Scanning “${keyword}” · Screen ${screenLabel} · ${links.size} candidates`));
       if (olderDate) {
+        stopReason = 'before_start_date';
         console.log(ui(`发现发布日期 ${olderDate} 早于开始日期 ${range.start}，已扫完本屏并停止「${keyword}」划屏。`,
           `Found a note dated ${olderDate}, before ${range.start}. Finished this screen and stopped scrolling for “${keyword}”.`));
         break;
@@ -410,7 +737,10 @@ async function collect(keyword, range, ask, background = false) {
       const view = JSON.stringify([viewport.scroll, viewport.documentHeight, visibleLinks.map(link => link.href)]);
       stable = view === previousView ? stable + 1 : 0;
       previousView = view;
-      if (toBottom && stable >= 3) break;
+      if (toBottom && stable >= 3) {
+        stopReason = 'no_scroll_change';
+        break;
+      }
       await search.mouse.move(Math.floor(viewport.width / 2), Math.floor(viewport.height / 2));
       await search.mouse.wheel(0, Math.floor(viewport.height * 0.9));
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -419,9 +749,11 @@ async function collect(keyword, range, ask, background = false) {
       const empty = search.getByText(/^(?:没有找到相关笔记|没有找到相关内容|未找到相关笔记|未找到相关内容|暂无相关笔记|暂无搜索结果|没有搜索结果|暂无相关内容)[。！!]?$/)
         .filter({ visible: true }).first();
       if (await empty.isVisible() && !await login.isVisible()) {
+        observe('scan_finished', { screensScanned, reason: 'no_results', candidates: 0, elapsedMs: elapsedMs(scanStarted) });
         console.log(ui('网页明确显示无相关结果，本关键词以 0 条记录完成。', 'The site reported no results. Finished this keyword with 0 notes.'));
         return { notes: [], unreadable: 0, candidates: 0, pageFilter, unknownCardDates: 0, outsideRange: 0, opened: 0 };
       }
+      observe('scan_finished', { screensScanned, reason: 'no_readable_cards', candidates: 0, elapsedMs: elapsedMs(scanStarted) });
       if (headless) throw new BrowserInteractionRequired(ui('后台页面未显示可读取的搜索结果', 'No readable results appeared in the background'));
       throw new Error(ui('未读到搜索结果。请检查浏览器中的登录、验证或搜索结果，也可使用 JSON 导入。', 'No search results could be read. Check the browser sign-in, verification, or search results.'));
     }
@@ -443,42 +775,77 @@ async function collect(keyword, range, ask, background = false) {
     const inRange = candidates.filter(({ date }) => date && date >= range.start && date <= range.end);
     const unknownCardDates = candidates.filter(({ date }) => !date).length;
     const outsideRange = candidates.length - inRange.length - unknownCardDates;
+    const dates = candidates.flatMap(({ date }) => date ? [date] : []).sort();
+    const beforeStart = dates.filter(date => date < range.start).length;
+    const missingDateLabel = candidates.filter(({ hasDateLabel }) => !hasDateLabel).length;
+    observe('scan_finished', { screensScanned, reason: stopReason, candidates: candidates.length,
+      inRange: inRange.length, beforeStart, afterEnd: outsideRange - beforeStart,
+      missingDateLabel, unrecognizedDateLabel: unknownCardDates - missingDateLabel,
+      earliestDate: dates[0], latestDate: dates.at(-1), elapsedMs: elapsedMs(scanStarted) });
     console.log(ui(`搜索卡片：日期命中 ${inRange.length} 条，范围外跳过 ${outsideRange} 条，未显示可识别日期跳过 ${unknownCardDates} 条。`,
       `Search cards: ${inRange.length} in range, ${outsideRange} outside the range, ${unknownCardDates} without a recognizable date.`));
-    const page = inRange.length ? await context.newPage() : null;
+    if (dates.length) {
+      const dated = candidates.filter(({ date }) => date);
+      const samples = [...new Set(dated.map(({ date, dateLabel }) =>
+        `“${dateLabel.replace(/\s+/g, ' ').slice(0, 40)}” → ${date}`))].slice(0, 5).join(' · ');
+      console.log(ui(`搜索卡片日期范围：${dates[0]} 至 ${dates.at(-1)}。目标日期：${range.start} 至 ${range.end}（北京时间）。`,
+        `Search card dates: ${dates[0]} to ${dates.at(-1)}. Requested range: ${range.start} to ${range.end} (China time).`));
+      console.log(ui(`日期样本：${samples}`, `Date examples: ${samples}`));
+    }
+    stage = 'read_details';
+    const detailStarted = performance.now();
+    const page = detailPage = inRange.length ? await context.newPage() : null;
     const notes = [];
     let unreadable = 0;
+    let missingAddress = 0;
+    const readFailures = new Map();
     for (const { href: url } of inRange) {
       signal?.throwIfAborted();
+      let detailStage = 'detail_navigation';
       try {
         await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+        detailStage = 'detail_content';
         const body = await page.locator('#detail-desc').innerText({ timeout: 4000 });
         const title = await page.locator('#detail-title').allTextContents();
         const dates = await page.locator('.note-content .date, .note-scroller .bottom-container .date').allTextContents();
         const dateLabel = dates[0]?.trim() ?? '';
         const date = parseDisplayedDate(dateLabel);
         const original = xhsNoteAddress(url);
+        detailStage = 'detail_address';
         const address = await waitForNoteAddress(page, original.id);
-        if (!address) console.log(ui(`笔记 ${original.id} 未确认 /explore/ 详情地址，原文地址留空。`, `The link could not be confirmed for note ${original.id}. The link cell will be blank.`));
+        if (!address) {
+          missingAddress++;
+          console.log(ui(`笔记 ${original.id} 未确认 /explore/ 详情地址，原文地址留空。`, `The link could not be confirmed for note ${original.id}. The link cell will be blank.`));
+        }
         notes.push({ id: original.id, title: title.join(' ').trim(), body: body.trim(), date, dateLabel, url: address });
-      } catch {
+      } catch (error) {
+        const key = `${detailStage}:${errorKind(error)}`;
+        readFailures.set(key, (readFailures.get(key) ?? 0) + 1);
         unreadable++;
       }
       console.log(ui(`读笔记 ${notes.length + unreadable}/${inRange.length}`, `Reading notes ${notes.length + unreadable}/${inRange.length}`));
     }
+    for (const [key, count] of readFailures) {
+      const [stage, reason] = key.split(':');
+      observe('detail_read_failed', { stage, reason, count });
+    }
+    observe('details_finished', { opened: inRange.length, readable: notes.length, unreadable, missingAddress,
+      elapsedMs: elapsedMs(detailStarted) });
     return { notes, unreadable, candidates: links.size, pageFilter, unknownCardDates, outsideRange, opened: inRange.length };
   } catch (error) {
+    observe('collection_failed', { stage, reason: signal?.aborted ? 'stopped' : errorKind(error), elapsedMs: elapsedMs(started) });
     signal?.throwIfAborted();
     console.error(ui(`小红书取数中断：${error.message}`, `Xiaohongshu collection stopped: ${error.message}`));
-    if (!headless && context.pages().some(page => !page.isClosed())) {
+    if (!(error instanceof TaskEnded || error instanceof SearchFilterError) &&
+        !headless && context.pages().some(page => !page.isClosed())) {
       await range.presentation?.apply?.('foreground');
       await ask(ui('浏览器窗口会保留供排查。确认页面状态后按回车关闭：', 'Check the browser window, then click Continue to close it.'));
     }
     throw error;
   } finally {
-    detachPresentation?.();
     signal?.removeEventListener('abort', abortBrowser);
-    await context.close().catch(() => {});
+    if (detailPage) await detailPage.close().catch(() => {});
+    if (!shared) await closeBrowserSession(browserSession);
   }
 }
 
@@ -723,11 +1090,14 @@ async function main() {
   const ask = async prompt => (await rl.question(prompt)).trim();
   try {
     if (process.argv.includes('--desktop')) {
+      const observe = process.env.XHS_TASK_DIAGNOSTICS === '1' ? writeDiagnostic : ignoreDiagnostic;
+      observe('worker_ready', { uptimeMs: Math.round(process.uptime() * 1000) });
       const cancellation = new AbortController();
       rl.on('line', line => {
         if (line === 'UI_CANCEL') cancellation.abort(new Error(ui('任务已停止。', 'Task stopped.')));
       });
       const request = JSON.parse(await ask(''));
+      observe('worker_request_received', { uptimeMs: Math.round(process.uptime() * 1000) });
       const presentation = { mode: 'foreground', bounds: request.browserBounds, apply: null };
       let answer;
       rl.on('line', line => {
@@ -750,7 +1120,13 @@ async function main() {
         return JSON.parse(response);
       };
       const apiKey = process.env.XHS_AI_KEY?.trim() || ((!request.provider || request.provider === 'OpenAI') ? process.env.OPENAI_API_KEY?.trim() : '');
-      await runBatch({ ...request, apiKey, background: true, presentation, signal: cancellation.signal }, desktopAsk);
+      const started = performance.now();
+      try {
+        await runBatch({ ...request, apiKey, background: true, presentation, signal: cancellation.signal, observe }, desktopAsk);
+      } catch (error) {
+        observe('batch_failed', { reason: cancellation.signal.aborted ? 'stopped' : errorKind(error), elapsedMs: elapsedMs(started) });
+        throw error;
+      }
       return;
     }
     console.log('小红书舆情报告');
@@ -781,42 +1157,75 @@ async function main() {
 }
 
 async function runBatch(request, ask) {
+  const observe = request.observe ?? ignoreDiagnostic;
+  const started = performance.now();
   try {
-    require('exceljs');
-    if (!request.source && process.platform !== 'darwin') require('playwright');
+    require.resolve('exceljs');
+    if (!request.source && process.platform !== 'darwin') require.resolve('playwright');
   } catch (error) {
+    observe('runtime_load_failed', { reason: errorKind(error) });
     const recovery = process.platform === 'linux' ? '请重新安装软件包' : '请重新安装程序或完整解压发行包';
     throw new Error(ui(`运行组件无法加载，${recovery}（${error.code ?? '加载错误'}）。`, `Runtime components could not load (${error.code ?? 'load error'}). Reinstall the app.`));
   }
   const terms = request.keyword.trim().split(/\s+/u).filter(Boolean);
   if (!terms.length) throw new Error(ui('请输入至少一个关键词。', 'Enter at least one keyword.'));
+  observe('batch_started', { keywords: terms.length, source: request.source ? 'json' : 'website',
+    startDate: validDate(request.start) ? request.start : undefined, endDate: validDate(request.end) ? request.end : undefined,
+    requestedSort: diagnosticSort(request.sort), screens: Number.isSafeInteger(request.screens) ? request.screens : undefined,
+    toBottom: request.screens === 'bottom', aiEnabled: Boolean(request.apiKey) });
   let failures = 0;
   const reports = [];
-  if (request.apiKey) request.config = aiConfig(request.provider, request.model, request.endpoint?.trim());
-  const templatePath = request.template?.trim();
-  const template = request.background || templatePath ? await loadReportTemplate(templatePath) : null;
-  for (const [index, keyword] of terms.entries()) {
-    request.signal?.throwIfAborted();
-    console.log(ui(`开始关键词 ${index + 1}/${terms.length}：${keyword}`, `Starting keyword ${index + 1}/${terms.length}: ${keyword}`));
-    let result = '完成';
-    try {
-      reports.push(await runReport({ ...request, keyword, template }, ask));
-    } catch (error) {
+  let template;
+  let setupStage = 'configure_ai';
+  try {
+    if (request.apiKey) request.config = aiConfig(request.provider, request.model, request.endpoint?.trim());
+    setupStage = 'load_report_template';
+    const templatePath = request.template?.trim();
+    template = request.background || templatePath ? await loadReportTemplate(templatePath) : null;
+  } catch (error) {
+    observe('batch_setup_failed', { stage: setupStage, reason: errorKind(error) });
+    throw error;
+  }
+  const browserSession = process.platform !== 'darwin' && !request.source && terms.length > 1 ? {} : null;
+  try {
+    for (const [index, keyword] of terms.entries()) {
       request.signal?.throwIfAborted();
-      if (error instanceof TaskEnded) throw error;
-      failures++;
-      result = '失败';
-      reports.push({ info: { 关键词: keyword, 处理状态: '失败' }, notes: [] });
-      console.error(ui(`关键词「${keyword}」失败：${error.message}`, `Keyword “${keyword}” failed: ${error.message}`));
+      const keywordStarted = performance.now();
+      const keywordDiagnostic = observe === ignoreDiagnostic ? ignoreDiagnostic :
+        (event, fields) => observe(event, { ...fields, keywordIndex: index + 1 });
+      keywordDiagnostic('keyword_started');
+      console.log(ui(`开始关键词 ${index + 1}/${terms.length}：${keyword}`, `Starting keyword ${index + 1}/${terms.length}: ${keyword}`));
+      let result = '完成';
+      try {
+        const report = await runReport({ ...request, keyword, template, browserSession, observe: keywordDiagnostic }, ask);
+        reports.push(report);
+        keywordDiagnostic('keyword_finished', { matched: report.notes.length, elapsedMs: elapsedMs(keywordStarted) });
+      } catch (error) {
+        keywordDiagnostic('keyword_failed', { reason: request.signal?.aborted ? 'stopped' : errorKind(error),
+          elapsedMs: elapsedMs(keywordStarted) });
+        request.signal?.throwIfAborted();
+        if (error instanceof TaskEnded) throw error;
+        failures++;
+        result = '失败';
+        reports.push({ info: { 关键词: keyword, 处理状态: '失败' }, notes: [] });
+        console.error(ui(`关键词「${keyword}」失败：${error.message}`, `Keyword “${keyword}” failed: ${error.message}`));
+      }
+      const progress = ui(`${index + 1}/${terms.length} 已处理 · 「${keyword}」${result}`,
+        `${index + 1}/${terms.length} processed · “${keyword}” ${result === '完成' ? 'completed' : 'failed'}`);
+      console.log(request.background ? `UI_PROGRESS ${progress}` : progress);
     }
-    const progress = ui(`${index + 1}/${terms.length} 已处理 · 「${keyword}」${result}`,
-      `${index + 1}/${terms.length} processed · “${keyword}” ${result === '完成' ? 'completed' : 'failed'}`);
-    console.log(request.background ? `UI_PROGRESS ${progress}` : progress);
+  } finally {
+    await closeBrowserSession(browserSession?.current);
   }
   if (failures < terms.length) {
     request.signal?.throwIfAborted();
     const directory = join(root, 'reports');
-    await mkdir(directory, { recursive: true });
+    try {
+      await mkdir(directory, { recursive: true });
+    } catch (error) {
+      observe('report_export_failed', { stage: 'prepare_directory', reason: errorKind(error) });
+      throw error;
+    }
     request.signal?.throwIfAborted();
     const label = terms.length > 1 ? '多关键词' : Array.from(terms[0].replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')).slice(0, 28).join('').replace(/[. ]+$/, '') || '关键词';
     const path = join(directory, `舆情_${label}_${request.start}_${request.end}_${randomUUID().slice(0, 8)}.xlsx`);
@@ -829,28 +1238,42 @@ async function runBatch(request, ask) {
       } catch (error) {
         request.signal?.throwIfAborted();
         summaryFailed = true;
+        observe('ai_summary_failed', { reason: errorKind(error) });
         summaryResult = { summaryStatus: `AI 综合总结未生成：${error.message}` };
       }
     }
     request.signal?.throwIfAborted();
     console.log(ui('正在生成 Excel…', 'Generating Excel…'));
-    await exportReport(path, reports[0].info, reports[0].notes, reports, template, request.signal, summaryResult);
+    const exportStarted = performance.now();
+    observe('report_export_started', { completedKeywords: terms.length - failures, failedKeywords: failures });
+    try {
+      await exportReport(path, reports[0].info, reports[0].notes, reports, template, request.signal, summaryResult);
+    } catch (error) {
+      observe('report_export_failed', { stage: 'write_workbook',
+        reason: request.signal?.aborted ? 'stopped' : errorKind(error), elapsedMs: elapsedMs(exportStarted) });
+      throw error;
+    }
+    observe('report_export_finished', { elapsedMs: elapsedMs(exportStarted) });
     console.log(ui(`已生成 Excel：${path}`, `Excel report: ${path}`));
     if (request.apiKey) {
       const incomplete = template && !template.fields.length ? 0 :
         reports.reduce((count, entry) => count + entry.notes.filter(note => !note.analysis).length, 0);
       if (incomplete || summaryFailed) {
+        observe('ai_partial_result', { incomplete, summaryFailed });
         const warning = [incomplete ? ui(`${incomplete} 条笔记分析未完成`, `Analysis incomplete for ${incomplete} notes`) : '',
           summaryFailed ? ui('AI 综合总结失败', 'AI report summary could not be generated') : ''].filter(Boolean).join(' · ');
         console.log(request.background ? `UI_ANALYSIS_WARNING ${warning}` : warning);
       }
     }
   }
+  observe('batch_finished', { completedKeywords: terms.length - failures, failedKeywords: failures,
+    elapsedMs: elapsedMs(started) });
   if (failures) throw new Error(ui(`${terms.length - failures}/${terms.length} 个关键词成功生成报告，${failures} 个失败。`,
     `${terms.length - failures}/${terms.length} keywords exported, ${failures} failed.`));
 }
 
-async function runReport({ keyword, start, end, source, sort, apiKey, config, screens = 4, background = false, presentation, signal, template }, ask) {
+async function runReport({ keyword, start, end, source, sort, apiKey, config, screens = 4, background = false,
+  presentation, signal, template, browserSession, observe = ignoreDiagnostic }, ask) {
     signal?.throwIfAborted();
     if (!keyword || !validDate(start) || !validDate(end) || start > end) throw new Error(ui('请输入关键词及有效的起止日期。', 'Enter keywords and a valid date range.'));
     let data;
@@ -863,10 +1286,10 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
       data = { notes, candidates: notes.length, unreadable: 0 };
     } else if (process.platform === 'darwin') {
       const { collectSafari } = await import('./safari.mjs');
-      data = await collectSafari(keyword, { start, end, sort, screens, signal, presentation }, ask,
+      data = await collectSafari(keyword, { start, end, sort, screens, signal, presentation, observe }, ask,
         { parseDisplayedDate, presetsCovering });
     } else {
-      const range = { start, end, sort, screens, background, presentation, signal };
+      const range = { start, end, sort, screens, background, presentation, signal, browserSession, observe };
       try {
         data = await collect(keyword, range, ask, background);
       } catch (error) {
@@ -879,8 +1302,14 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
         data = await collect(keyword, range, ask);
       }
     }
-    const { matched, unknownDates } = selectNotes(data.notes, start, end, keyword);
+    const { matched, unknownDates, keywordMismatch, outsideRange, duplicates } = selectNotes(data.notes, start, end, keyword);
+    observe('detail_selection_finished', { readable: data.notes.length, matched: matched.length, unknownDates,
+      keywordMismatch, outsideRange, duplicates });
     let apiBlocked;
+    const analysisStarted = performance.now();
+    let attempted = 0;
+    let analyzed = 0;
+    const analysisFailures = new Map();
     for (const [index, note] of matched.entries()) {
       signal?.throwIfAborted();
       if (template) {
@@ -896,13 +1325,22 @@ async function runReport({ keyword, start, end, source, sort, apiKey, config, sc
         continue;
       }
       try {
+        attempted++;
         note.analysis = await analyse(note, keyword, apiKey, config.model, signal, config, template);
+        analyzed++;
       } catch (error) {
+        const reason = errorKind(error);
+        analysisFailures.set(reason, (analysisFailures.get(reason) ?? 0) + 1);
         note.error = error.message;
         if (/HTTP (401|403|404|429)/.test(error.message)) apiBlocked = error.message;
       }
       console.log(ui(`分析 ${index + 1}/${matched.length}${note.error ? ` · ${note.error}` : ''}`,
         `Analyzing ${index + 1}/${matched.length}${note.error ? ` · ${note.error}` : ''}`));
+    }
+    if (apiKey) {
+      for (const [reason, count] of analysisFailures) observe('ai_analysis_failed', { reason, count });
+      observe('ai_analysis_finished', { attempted, analyzed, skipped: matched.length - attempted,
+        elapsedMs: elapsedMs(analysisStarted) });
     }
     return { info: {
       关键词: keyword, 开始日期: start, 结束日期: end, 时区: 'Asia/Shanghai',

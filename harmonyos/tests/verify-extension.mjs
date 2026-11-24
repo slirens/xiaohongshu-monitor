@@ -35,6 +35,7 @@ const cases = new Map([
   ['硚口', '123456789abcdef012345678'],
 ]);
 const old = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+const missingSort = '无可用排序';
 
 function notesPage(keyword, id) {
   return `<!doctype html><meta charset="utf-8">
@@ -82,6 +83,7 @@ async function verify(locale) {
       }
       if (url.pathname === '/search_result') {
         const keyword = url.searchParams.get('keyword');
+        if (keyword === missingSort) return html(notesPage(keyword, old).replace('>最新</button>', '>其他排序</button>'));
         const id = cases.get(keyword);
         if (!id) return route.fulfill({ status: 404 });
         searched.push(keyword);
@@ -212,8 +214,15 @@ async function verify(locale) {
     assert.equal(customDetail.getCell('D2').value, '未配置 API');
     assert.equal(customWorkbook.getWorksheet('宝山').getCell('A2').value, '宝山新笔记');
     assert.equal(customWorkbook.getWorksheet('风险总结').getCell('B2').value, '风险规则.md');
+    const previouslyOpened = opened.length;
+    await terms.fill(missingSort);
+    await dashboard.locator('#start-job').click();
+    await dashboard.locator('#status').filter({ hasText: '本次没有完成的关键词' }).waitFor();
+    assert.match(await dashboard.locator('#history').innerText(), /自动筛选失败（选择排序）/);
+    assert.ok(!await dashboard.locator('#prompt').isVisible(), 'filter failure did not ask for a manual choice');
+    assert.equal(opened.length, previouslyOpened, 'filter failure did not open a note');
     assert.deepEqual(errors, []);
-    console.log('Verified extension collection, invalid template preflight, and custom-sheet Excel export without an API key.');
+    console.log('Verified extension collection, a skipped filter failure, and custom-sheet Excel export without an API key.');
   } finally {
     await context.close();
     console.log(`Disposable test directory: ${temporary}`);

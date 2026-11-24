@@ -53,34 +53,37 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
 
   progress(t(`正在搜索「${keyword}」`, `Searching for “${keyword}”`));
   await browser.navigate(search.href);
-  let found = await waitForResults();
-  if (found?.login) {
-    await ask(t('请在采集标签页完成小红书登录或平台要求的验证，然后返回扩展页继续。', 'Sign in to Xiaohongshu or complete its verification in the collection tab, then return here to continue.'));
-    checkAbort(signal);
-    await browser.navigate(search.href);
-    found = await waitForResults();
-  }
-  if (!found || found.login || !isSearch(found.url)) throw new Error(t('未能进入目标搜索页，请检查登录和网页状态后重试。', 'Could not open the requested search. Check that you are signed in and the page is available, then try again.'));
+  const waitForAccess = async found => {
+    while (found?.login) {
+      await ask(t('请在采集标签页完成小红书登录或平台要求的验证，然后返回扩展页继续。', 'Sign in to Xiaohongshu or complete its verification in the collection tab, then return here to continue.'));
+      checkAbort(signal);
+      if (!isSearch(await browser.url())) await browser.navigate(search.href);
+      found = await waitForResults();
+    }
+    if (!found || !isSearch(found.url)) throw new Error(t('未能进入目标搜索页，请检查登录和网页状态后重试。', 'Could not open the requested search. Check that you are signed in and the page is available, then try again.'));
+  };
+  await waitForAccess(await waitForResults());
 
   const choose = async (kind, expression) => {
     await browser.evaluate('openFilter');
     return wait(() => browser.evaluate(kind, expression.source), 2500);
   };
   let dateFilter = '';
-  if (found.filter) {
+  while (true) {
     const order = await choose('clickOption', range.sort === '综合' ? /^综合$/ : /^最新$/);
     if (order) for (const [, expression] of eligible) {
       dateFilter = await choose('clickTime', expression);
       if (dateFilter) break;
     }
-  }
-  if (!dateFilter) {
-    const choices = eligible.map(([days]) => days === Infinity ? '不限' : days === 1 ? '一天内' : days === 7 ? '一周内' : '半年内');
-    const order = range.sort === '综合' ? 'Relevance (综合)' : 'Latest (最新)';
-    const selected = await ask(t(`请在采集标签页应用「${range.sort}」排序及覆盖目标日期的发布时间，再返回并选择网页上的同名选项。`, `In the collection tab, sort by ${order} and choose a publication date filter that covers the selected dates. Return here and select the same option.`), choices);
-    checkAbort(signal);
-    if (!choices.includes(selected) || !isSearch(await browser.url())) throw new Error(t('网页时间筛选未确认。', 'The website’s date filter was not confirmed.'));
-    dateFilter = selected;
+    const current = await state();
+    if (current?.login) {
+      await waitForAccess(current);
+      dateFilter = '';
+      continue;
+    }
+    if (!order) throw new Error(t('自动筛选失败（选择排序），已跳过此关键词。', 'Automatic filter selection failed (sorting). Skipped this keyword.'));
+    if (!dateFilter) throw new Error(t('自动筛选失败（选择发布时间），已跳过此关键词。', 'Automatic filter selection failed (publication time). Skipped this keyword.'));
+    break;
   }
   progress(t(`网页发布时间 · ${dateFilter}`, `Publication date · ${dateFilterCaption(dateFilter)}`));
   await sleep(1000);

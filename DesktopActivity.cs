@@ -11,6 +11,7 @@ internal sealed partial class Desktop
     private Bitmap activityCover;
     private Bitmap[] pawFrames;
     private Icon[] activityIcons;
+    private Icon staticWindowIcon;
     private Icon staticTrayIcon;
     private int activityFrame;
 
@@ -28,6 +29,7 @@ internal sealed partial class Desktop
         FormClosed += delegate {
             activityTimer.Stop();
             activityTimer.Dispose();
+            Icon = staticWindowIcon;
             tray.Icon = staticTrayIcon;
             if (pawFrames != null) foreach (Bitmap frame in pawFrames) if (frame != null) frame.Dispose();
             if (activityIcons != null) foreach (Icon icon in activityIcons) if (icon != null) icon.Dispose();
@@ -39,7 +41,10 @@ internal sealed partial class Desktop
     private void UpdateActivity()
     {
         if (activityPicture == null || IsDisposed || tray.Icon == null) return;
-        if (staticTrayIcon == null) staticTrayIcon = tray.Icon;
+        if (staticTrayIcon == null) {
+            staticWindowIcon = Icon;
+            staticTrayIcon = tray.Icon;
+        }
         bool active = running && !cancelRequested && pendingPrompt == null;
         if (!active) activityFrame = 0;
         if (active && Visible) {
@@ -53,7 +58,10 @@ internal sealed partial class Desktop
         } else {
             activityPicture.Image = activityCover;
         }
-        if (active && !Visible) {
+        bool animateWindow = active && compactView.Visible;
+        bool animateTray = active && !Visible;
+        Icon frameIcon = null;
+        if (animateWindow || animateTray) {
             if (activityIcons == null) {
                 activityIcons = new[] {
                     CreateActivityIcon(activityCover, Color.FromArgb(71, 142, 255)),
@@ -61,11 +69,12 @@ internal sealed partial class Desktop
                     CreateActivityIcon(activityCover, Color.FromArgb(50, 217, 189)),
                 };
             }
-            var frameIcon = activityIcons[(activityFrame / 2) % activityIcons.Length];
-            if (tray.Icon != frameIcon) tray.Icon = frameIcon;
-        } else {
-            if (tray.Icon != staticTrayIcon) tray.Icon = staticTrayIcon;
+            frameIcon = activityIcons[(activityFrame / 2) % activityIcons.Length];
         }
+        var windowIcon = animateWindow ? frameIcon : staticWindowIcon;
+        var trayIcon = animateTray ? frameIcon : staticTrayIcon;
+        if (Icon != windowIcon) Icon = windowIcon;
+        if (tray.Icon != trayIcon) tray.Icon = trayIcon;
     }
 
     private static Bitmap CreatePawFrame(Bitmap cover, double phase)

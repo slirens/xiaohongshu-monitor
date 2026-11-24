@@ -44,11 +44,6 @@ private func worker(home: URL, key: String = "", language: AppLanguage = .system
 private struct Prompt: Identifiable {
     let id = UUID()
     let text: String
-    var chooseTime: Bool { text.contains("同名时间选项") || text.contains("same publication time option") }
-    var timeOptions: [String] {
-        if text.contains("此日期可使用不限") || text.contains("Any time covers this range") { return ["不限"] }
-        return ["一天内", "一周内", "半年内"]
-    }
 }
 
 @MainActor
@@ -215,7 +210,6 @@ private struct MonitorView: View {
     @State private var template = ""
     @State private var settingsOpen = false
     @State private var logOpen = false
-    @State private var chosenTime = ""
     @FocusState private var keywordFocused: Bool
     private let zone = TimeZone(identifier: "Asia/Shanghai")!
     private static let cover = NSImage(contentsOf: resources.appendingPathComponent("cover.png"))
@@ -258,7 +252,7 @@ private struct MonitorView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didDeminiaturizeNotification)) { _ in
             if monitor.prompt == nil { monitor.command("UI_FOREGROUND") }
         }
-        .sheet(item: $monitor.prompt, onDismiss: { chosenTime = "" }) { prompt in
+        .sheet(item: $monitor.prompt) { prompt in
             browserPrompt(prompt)
         }
     }
@@ -449,29 +443,13 @@ private struct MonitorView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(text("需要在 Safari 操作", "Action needed in Safari")).font(.headline)
             Text(prompt.text).fixedSize(horizontal: false, vertical: true)
-            if prompt.chooseTime {
-                Picker(text("已应用的发布时间", "Publication time applied"), selection: $chosenTime) {
-                    Text(text("请选择", "Select a time option")).tag("")
-                    ForEach(prompt.timeOptions, id: \.self) { Text(timeOptionLabel($0)).tag($0) }
-                }
-            }
             HStack {
                 Button(text("停止任务", "Stop task"), role: .cancel) { monitor.stop() }
                 Spacer()
-                Button(text("继续", "Continue")) { monitor.answer(prompt.chooseTime ? chosenTime : "继续") }
-                    .buttonStyle(.borderedProminent).disabled(prompt.chooseTime && chosenTime.isEmpty)
+                Button(text("继续", "Continue")) { monitor.answer("继续") }
+                    .buttonStyle(.borderedProminent)
             }
         }.padding(24).frame(width: 470).interactiveDismissDisabled()
-    }
-
-    private func timeOptionLabel(_ option: String) -> String {
-        switch option {
-        case "不限": text(option, "Any time")
-        case "一天内": text(option, "Past day")
-        case "一周内": text(option, "Past week")
-        case "半年内": text(option, "Past six months")
-        default: option
-        }
     }
 
     private func chooseTemplate() {
@@ -527,12 +505,11 @@ struct XiaohongshuMonitor: App {
         if CommandLine.arguments.contains("--verify-localization") {
             let english = AppLanguage(preferredLanguage: "en-US")
             let chinese = AppLanguage(preferredLanguage: "zh-Hant-TW")
-            let prompt = Prompt(text: "Select the same publication time option. Any time covers this range.")
             guard english.text("准备就绪", "Ready") == "Ready",
                   chinese.text("准备就绪", "Ready") == "准备就绪",
                   worker(home: reportHome, language: english).environment?["XHS_UI_LANG"] == "en",
-                  prompt.chooseTime, prompt.timeOptions == ["不限"] else { exit(1) }
-            print("Verified Chinese and English language selection and the worker prompt contract.")
+                  worker(home: reportHome, language: chinese).environment?["XHS_UI_LANG"] == "zh-CN" else { exit(1) }
+            print("Verified Chinese and English language selection for the app and worker.")
             exit(0)
         }
         if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--verify" {
