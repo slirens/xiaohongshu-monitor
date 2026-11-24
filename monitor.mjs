@@ -445,22 +445,30 @@ function linuxBrowserCandidates(chromium) {
   ];
 }
 
-async function launchBrowser(range, background, observe) {
-  const signal = range.signal;
+let loadedChromium;
+
+function loadBrowserDriver(observe) {
+  if (loadedChromium) return loadedChromium;
   const linux = process.platform === 'linux';
   const bundledPath = join(dirname(process.execPath), 'browsers');
   if (!linux && existsSync(bundledPath)) {
     process.env.PLAYWRIGHT_BROWSERS_PATH = bundledPath;
   }
   const driverStarted = performance.now();
-  let chromium;
   try {
-    ({ chromium } = require('playwright'));
+    ({ chromium: loadedChromium } = require('playwright'));
   } catch (error) {
     observe('runtime_load_failed', { stage: 'browser_driver', reason: errorKind(error), elapsedMs: elapsedMs(driverStarted) });
     throw error;
   }
   observe('browser_driver_ready', { elapsedMs: elapsedMs(driverStarted) });
+  return loadedChromium;
+}
+
+async function launchBrowser(range, background, observe) {
+  const signal = range.signal;
+  const linux = process.platform === 'linux';
+  const chromium = loadBrowserDriver(observe);
   const browserEnv = { ...process.env };
   delete browserEnv.XHS_AI_KEY;
   delete browserEnv.OPENAI_API_KEY;
@@ -1096,9 +1104,36 @@ async function main() {
       rl.on('line', line => {
         if (line === 'UI_CANCEL') cancellation.abort(new Error(ui('任务已停止。', 'Task stopped.')));
       });
-      const request = JSON.parse(await ask(''));
+      const initialRequest = new Promise(resolve => {
+        const onClose = () => resolve(undefined);
+        rl.once('close', onClose);
+        rl.once('line', line => {
+          rl.off('close', onClose);
+          resolve(line);
+        });
+      });
+      if (process.platform !== 'darwin' && process.argv.includes('--warm-browser-driver')) {
+        try {
+          loadBrowserDriver(observe);
+        } catch {
+          // A cold task will retry and report the driver error if it persists.
+        }
+      }
+      const input = await initialRequest;
+      if (input === undefined) return;
+      let request;
+      try {
+        request = JSON.parse(input);
+      } catch (error) {
+        throw new Error(ui('无法读取任务配置。', 'Could not read the task configuration.'), { cause: error });
+      }
       observe('worker_request_received', { uptimeMs: Math.round(process.uptime() * 1000) });
-      const presentation = { mode: 'foreground', bounds: request.browserBounds, apply: null };
+      const { apiKey: taskKey, defaultBrowserExecutable, ...task } = request;
+      if (typeof defaultBrowserExecutable === 'string') {
+        if (defaultBrowserExecutable) process.env.XHS_DEFAULT_BROWSER_EXE = defaultBrowserExecutable;
+        else delete process.env.XHS_DEFAULT_BROWSER_EXE;
+      }
+      const presentation = { mode: task.startInBackground ? 'background' : 'foreground', bounds: task.browserBounds, apply: null };
       let answer;
       rl.on('line', line => {
         if (line === 'UI_BACKGROUND' || line === 'UI_FOREGROUND') {
@@ -1119,10 +1154,11 @@ async function main() {
         cancellation.signal.throwIfAborted();
         return JSON.parse(response);
       };
-      const apiKey = process.env.XHS_AI_KEY?.trim() || ((!request.provider || request.provider === 'OpenAI') ? process.env.OPENAI_API_KEY?.trim() : '');
+      const apiKey = typeof taskKey === 'string' ? taskKey.trim() :
+        process.env.XHS_AI_KEY?.trim() || ((!task.provider || task.provider === 'OpenAI') ? process.env.OPENAI_API_KEY?.trim() : '');
       const started = performance.now();
       try {
-        await runBatch({ ...request, apiKey, background: true, presentation, signal: cancellation.signal, observe }, desktopAsk);
+        await runBatch({ ...task, apiKey, background: true, presentation, signal: cancellation.signal, observe }, desktopAsk);
       } catch (error) {
         observe('batch_failed', { reason: cancellation.signal.aborted ? 'stopped' : errorKind(error), elapsedMs: elapsedMs(started) });
         throw error;

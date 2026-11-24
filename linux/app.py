@@ -61,21 +61,21 @@ def date_value(value):
 
 
 class Worker:
-    def __init__(self, home, request, key):
+    def __init__(self, home, *, warm_browser=False):
         self.events = Queue()
         env = {**os.environ, "XHS_MONITOR_HOME": str(home), "XHS_UI_LANG": UI_LANG}
         env.pop("OPENAI_API_KEY", None)
         env.pop("XHS_AI_KEY", None)
-        if key:
-            env["XHS_AI_KEY"] = key
+        command = [str(APP_ROOT / "runtime" / "node"), str(APP_ROOT / "monitor.mjs"), "--desktop"]
+        if warm_browser:
+            command.append("--warm-browser-driver")
         self.process = subprocess.Popen(
-            [str(APP_ROOT / "runtime" / "node"), str(APP_ROOT / "monitor.mjs"), "--desktop"],
+            command,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1, env=env, cwd=home,
             start_new_session=True,
         )
         Thread(target=self.read, daemon=True).start()
-        self.send(json.dumps(request, ensure_ascii=False))
 
     def read(self):
         with self.process.stdout as output:
@@ -92,7 +92,18 @@ class Worker:
             self.process.stdin.write(line + "\n")
             self.process.stdin.flush()
         except (BrokenPipeError, OSError, ValueError):
+            return False
+        return True
+
+    def close_idle(self):
+        try:
+            self.process.stdin.close()
+        except OSError:
             pass
+        try:
+            self.process.wait(timeout=0.15)
+        except subprocess.TimeoutExpired:
+            self.kill()
 
     def kill(self):
         if self.process.poll() is not None:
@@ -110,6 +121,7 @@ class Monitor:
         self.verify = verify
         self.templates = home / "templates"
         self.worker = None
+        self.prepared_worker = None
         self.dialog = None
         self.report = None
         self.result = None
@@ -125,6 +137,37 @@ class Monitor:
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.window.bind("<Map>", self.restore)
         self.build_view()
+        if not self.verify:
+            self.window.after_idle(self.prepare_worker)
+
+    def prepare_worker(self):
+        if self.worker or self.prepared_worker or self.closing:
+            return
+        try:
+            self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self.prepared_worker = Worker(self.home, warm_browser=True)
+        except OSError:
+            # Launch normally if preparing an idle worker is unavailable.
+            pass
+
+    def acquire_worker(self, request):
+        line = json.dumps(request, ensure_ascii=False)
+        prepared = self.prepared_worker
+        self.prepared_worker = None
+        if prepared is not None and prepared.process.poll() is not None:
+            prepared.close_idle()
+            prepared = None
+        worker = prepared if prepared is not None else Worker(self.home)
+        if worker.send(line):
+            return worker
+        # An unsuccessful flush may have sent enough to start the task already.
+        worker.close_idle()
+        raise OSError(t("运行组件未能接收任务。", "The monitor worker could not receive the task."))
+
+    def release_prepared_worker(self):
+        if self.prepared_worker is not None:
+            self.prepared_worker.close_idle()
+            self.prepared_worker = None
 
     def entry_group(self, parent, label, value, row, column, *, secret=False):
         group = ttk.Frame(parent, style="Card.TFrame")
@@ -490,11 +533,12 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
             "sort": SORT_OPTIONS[self.sort.get()], "screens": count, "source": source,
             "template": "" if selected == BUILTIN else str(self.templates / (selected + ".md")),
             "provider": self.provider.get(), "model": self.model.get().strip(),
-            "endpoint": self.endpoint.get().strip(),
+            "endpoint": self.endpoint.get().strip(), "apiKey": self.key.get().strip(),
+            "startInBackground": self.minimized,
         }
         try:
             self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
-            self.worker = Worker(self.home, request, self.key.get().strip())
+            self.worker = self.acquire_worker(request)
         except OSError as error:
             self.status.set(t("无法启动监控。", "Could not start monitoring."))
             self.log_line(str(error))
@@ -621,6 +665,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.run.configure(state="normal")
         self.running_actions.pack_forget()
         if self.closing:
+            self.release_prepared_worker()
             self.window.destroy()
             return
         if self.cancelled:
@@ -643,6 +688,8 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
                                  stderr=subprocess.DEVNULL)
             except OSError:
                 pass
+        if not self.verify:
+            self.window.after_idle(self.prepare_worker)
 
     def open_reports(self):
         try:
@@ -655,6 +702,8 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
 
     def close(self):
         if not self.worker:
+            self.closing = True
+            self.release_prepared_worker()
             self.window.destroy()
         elif messagebox.askyesno(t("退出程序", "Quit"),
                                  t("停止正在运行的任务并退出？", "Stop the running task and quit?"),
@@ -665,12 +714,29 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
 
 def verify_app(app, fixture):
     assert SORT_OPTIONS[app.sort.get()] == "最新" and app.screens.get() == BOTTOM
+    prior_files = set(app.home.iterdir()) if app.home.exists() else set()
+    app.prepare_worker()
+    prepared = app.prepared_worker
+    assert prepared is not None
+    app.prepare_worker()
+    assert app.prepared_worker is prepared
+    deadline = monotonic() + 30
+    while True:
+        event, value = prepared.events.get(timeout=max(0, deadline - monotonic()))
+        if event != "line" or not value.startswith("UI_DIAG "):
+            raise RuntimeError("The idle Linux worker emitted unexpected output")
+        diagnostic = json.loads(value.removeprefix("UI_DIAG "))["event"]
+        if diagnostic == "browser_driver_ready":
+            break
+        assert diagnostic == "worker_ready"
+    assert set(app.home.iterdir()) == prior_files
     app.keyword.insert("1.0", "宝山 硚口")
     app.start_date.set("2026-11-23")
     app.end_date.set("2026-11-23")
     app.start(str(Path(fixture).resolve(strict=True)))
     if app.worker is None:
         raise RuntimeError(app.status.get())
+    assert app.worker is prepared and app.prepared_worker is None
     deadline = monotonic() + 30
     while app.worker and monotonic() < deadline:
         app.window.update()
@@ -691,15 +757,22 @@ def main():
     window = tk.Tk()
     if args.verify:
         fixture, home = args.verify
+        os.environ["XHS_TASK_DIAGNOSTICS"] = "1"
         window.withdraw()
         app = Monitor(window, Path(home).resolve(), verify=True)
         try:
             verify_app(app, fixture)
         finally:
+            app.release_prepared_worker()
+            if app.worker is not None:
+                app.worker.kill()
             window.destroy()
     else:
         app = Monitor(window, data_home())
-        window.mainloop()
+        try:
+            window.mainloop()
+        finally:
+            app.release_prepared_worker()
 
 
 if __name__ == "__main__":

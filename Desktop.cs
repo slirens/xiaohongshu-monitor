@@ -14,9 +14,9 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyVersion("1.0.6.0")]
-[assembly: AssemblyFileVersion("1.0.6.0")]
-[assembly: AssemblyInformationalVersion("1.0.6")]
+[assembly: AssemblyVersion("1.0.7.0")]
+[assembly: AssemblyFileVersion("1.0.7.0")]
+[assembly: AssemblyInformationalVersion("1.0.7")]
 
 internal sealed partial class Desktop : Form
 {
@@ -63,6 +63,7 @@ internal sealed partial class Desktop : Form
     private bool cancelRequested;
     private bool exitRequested;
     private Process activeWorker;
+    private Task<Process> preparedWorker;
     private Form pendingPrompt;
     private Control setupView;
     private TableLayoutPanel compactView;
@@ -86,6 +87,8 @@ internal sealed partial class Desktop : Form
             if (verifyLayout) return window.VerifyLayout();
             if (args.Length == 2 && args[0] == "--verify")
                 return window.Verify(args[1]);
+            window.Shown += delegate { window.PrepareBrowserWorker(); };
+            window.FormClosed += delegate { window.ReleasePreparedWorker(); };
             Application.Run(window);
             return 0;
         }
@@ -502,10 +505,16 @@ internal sealed partial class Desktop : Form
         int? workerExitCode = null;
         string diagnosticOutcome = "failed", diagnosticError = null;
         try {
-            using (var worker = StartWorker(key, diagnostics)) {
+            using (var worker = await AcquireWorker(diagnostics)) {
+                if (cancelRequested) {
+                    StopIdleWorker(worker);
+                    diagnosticOutcome = "stopped";
+                    status.Text = Ui("任务已停止", "Task stopped");
+                    return;
+                }
                 activeWorker = worker;
                 if (diagnostics != null) diagnostics.DesktopEvent("worker_started");
-                Send(worker, keyword.Text.Trim(), from, to, reportTemplate, order.SelectedIndex == 0 ? "最新" : "综合");
+                Send(worker, keyword.Text.Trim(), from, to, reportTemplate, order.SelectedIndex == 0 ? "最新" : "综合", key: key);
                 if (diagnostics != null) diagnostics.DesktopEvent("worker_request_sent");
                 Task errors = Task.Run(async delegate {
                     string line;
@@ -588,7 +597,59 @@ internal sealed partial class Desktop : Form
             RestoreSetupView();
             if (!cancelRequested && !File.Exists(report)) showTaskDetails();
             if (exitRequested) Close();
+            else PrepareBrowserWorker();
         }
+    }
+
+    private void PrepareBrowserWorker()
+    {
+        if (preparedWorker != null || running || IsDisposed) return;
+        preparedWorker = Task.Run(() => {
+            try { return StartWorker(warmBrowser: true); }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+            catch (InvalidOperationException) { return null; }
+            catch (System.ComponentModel.Win32Exception) { return null; }
+        });
+    }
+
+    private async Task<Process> AcquireWorker(TaskDiagnostics diagnostics)
+    {
+        var pending = preparedWorker;
+        preparedWorker = null;
+        if (pending != null) {
+            var worker = await pending;
+            if (worker != null && !worker.HasExited) {
+                if (diagnostics != null) diagnostics.DesktopEvent("worker_prestarted");
+                return worker;
+            }
+            if (worker != null) worker.Dispose();
+        }
+        return await Task.Run(() => StartWorker(diagnostics: diagnostics));
+    }
+
+    private void ReleasePreparedWorker()
+    {
+        var pending = preparedWorker;
+        preparedWorker = null;
+        if (pending != null) {
+            pending.ContinueWith(task => {
+                using (var worker = task.Result) StopIdleWorker(worker);
+            },
+                System.Threading.CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.Default);
+        }
+    }
+
+    private static void StopIdleWorker(Process worker)
+    {
+        if (worker == null) return;
+        try {
+            worker.StandardInput.Close();
+            if (!worker.WaitForExit(150)) worker.Kill();
+        } catch (IOException) { }
+        catch (InvalidOperationException) { }
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
@@ -611,7 +672,7 @@ internal sealed partial class Desktop : Form
         return null;
     }
 
-    private Process StartWorker(string key, TaskDiagnostics diagnostics = null)
+    private Process StartWorker(bool warmBrowser = false, TaskDiagnostics diagnostics = null)
     {
         var preparation = Stopwatch.StartNew();
         string runtime = FindRuntime();
@@ -624,11 +685,8 @@ internal sealed partial class Desktop : Form
         execution.EnvironmentVariables["XHS_UI_LANG"] = English ? "en" : "zh-CN";
         execution.EnvironmentVariables["XHS_TASK_DIAGNOSTICS"] = "1";
         execution.EnvironmentVariables.Remove("XHS_DEFAULT_BROWSER_EXE");
-        string defaultBrowser = DefaultBrowserExecutable();
-        if (defaultBrowser != null) execution.EnvironmentVariables["XHS_DEFAULT_BROWSER_EXE"] = defaultBrowser;
         execution.EnvironmentVariables.Remove("XHS_AI_KEY");
         execution.EnvironmentVariables.Remove("OPENAI_API_KEY");
-        if (!string.IsNullOrEmpty(key)) execution.EnvironmentVariables["XHS_AI_KEY"] = key;
         string workerPath = Path.Combine(home, "runtime", "monitor.mjs");
         bool temporary = false;
         try {
@@ -643,7 +701,7 @@ internal sealed partial class Desktop : Form
                 }
             }
             if (diagnostics != null) diagnostics.DesktopEvent(temporary ? "worker_prepared_temp" : "worker_prepared_installed", preparation.ElapsedMilliseconds);
-            execution.Arguments = "\"" + workerPath + "\" --desktop";
+            execution.Arguments = "\"" + workerPath + "\" --desktop" + (warmBrowser ? " --warm-browser-driver" : "");
             var worker = new Process { StartInfo = execution, EnableRaisingEvents = true };
             if (temporary) worker.Exited += delegate { TryDelete(workerPath); };
             if (!worker.Start()) throw new InvalidOperationException(Ui("未能启动采集程序。", "Could not start the collection process."));
@@ -663,13 +721,14 @@ internal sealed partial class Desktop : Form
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    private void Send(Process worker, string term, DateTime from, DateTime to, string template, string sort, string source = "")
+    private void Send(Process worker, string term, DateTime from, DateTime to, string template, string sort, string source = "", string key = "")
     {
         var bounds = browserBounds.IsEmpty ? null : new { left = browserBounds.Left, top = browserBounds.Top,
             width = browserBounds.Width, height = browserBounds.Height };
         var request = new { keyword = term, start = DateText(from), end = DateText(to), source, template, sort = sort,
             screens = ParseScreenCount(), browserBounds = bounds, provider = aiProvider.Text,
-            model = aiModel.Text.Trim(), endpoint = qwenEndpoint.Enabled ? qwenEndpoint.Text.Trim() : "" };
+            model = aiModel.Text.Trim(), endpoint = qwenEndpoint.Enabled ? qwenEndpoint.Text.Trim() : "",
+            apiKey = key, defaultBrowserExecutable = DefaultBrowserExecutable() ?? "", startInBackground = !Visible };
         // ASCII-only JSON keeps the initial message independent of the Windows input code page.
         worker.StandardInput.WriteLine(AsciiJson(request));
         worker.StandardInput.Flush();
@@ -1027,7 +1086,7 @@ internal sealed partial class Desktop : Form
     {
         int layout = VerifyLayout();
         if (layout != 0) return layout;
-        using (var worker = StartWorker("")) {
+        using (var worker = StartWorker()) {
             var day = new DateTime(2026, 11, 21);
             Send(worker, "之禾 咖啡", day, day, Path.Combine(home, "报告生成模板.md"), "最新", path);
             var errors = worker.StandardError.ReadToEndAsync();

@@ -45,6 +45,9 @@ $env:OPENAI_API_KEY = $null
 Invoke-CheckedProcess $exe @('--verify-ui', 'en') 'English interface smoke test'
 Invoke-CheckedProcess $exe @('--verify-ui', 'zh-CN') 'Simplified Chinese interface smoke test'
 Invoke-CheckedProcess $exe @('--verify', ('"{0}"' -f $fixture)) 'Installed desktop smoke test'
+$worker = Join-Path $appFolder 'runtime/monitor.mjs'
+& $node (Join-Path $PSScriptRoot '../tests/verify-warm-worker.cjs') $worker
+if ($LASTEXITCODE -ne 0) { throw 'Installed worker prewarm verification failed.' }
 $report = Get-ChildItem -LiteralPath (Join-Path $appFolder 'reports') -Filter '*.xlsx'
 if (@($report).Count -ne 1) { throw 'Expected one combined Excel report.' }
 $env:XHS_VERIFY_WORKBOOK = $report.FullName

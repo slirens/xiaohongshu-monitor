@@ -1,20 +1,18 @@
 ## 更新 · What's new
 
-- 自动筛选依次应用排序和发布时间。Windows 和 Linux 在常规点击超时后重开浮层并重试。筛选失败时跳过该关键词，并继续处理其余关键词。
-- Windows 执行窗口左上角和托盘图标共用运行中的动画帧。新增 360 安全浏览器、360 极速浏览器和极速浏览器 X 的默认浏览器识别与启动支持。
-- Excel 组件改在导出时加载。筛选异常可在 Windows 诊断日志中查看点击阶段、拦截原因及超时后浮层和按钮的状态。
-- Automatic filtering applies sorting and publication time in order. Windows and Linux reopen the filter menu and retry when a normal click times out. A failed filter skips that keyword and lets the rest of the batch continue.
-- The Windows task-window and tray icons share the same running animation. Windows can detect and launch 360 Secure Browser, 360 Extreme Browser, and 360 Extreme Browser X as the default browser.
-- The Excel component loads at export time. Windows diagnostics record the filter action, timeout cause, and the menu and control state observed afterward.
+- Windows 和 Linux 会提前加载本地浏览器驱动，点击「开始监控」后才打开浏览器并运行任务。退出程序时清理空闲的预加载进程。
+- macOS 使用 Safari 执行任务。鸿蒙电脑请在华为浏览器安装扩展预览版。
+- Windows and Linux preload the local browser driver. Clicking Start monitoring opens the browser and runs the task. The idle worker is cleaned up when the app exits.
+- The macOS app uses Safari. On HarmonyOS PC, load the preview extension in HUAWEI Browser.
 
 ## 下载 · Download
 
 | 系统 · Platform | 安装包 · Package |
 | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-windows-x86-setup.exe) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-macos-x86_64.dmg) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-linux-amd64.deb) |
-| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-harmonyos-browser.zip) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-windows-x86-setup.exe) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-macos-x86_64.dmg) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-linux-amd64.deb) |
+| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-harmonyos-browser.zip) |
 
 ### 安装说明
 

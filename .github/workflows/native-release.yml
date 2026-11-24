@@ -1,10 +1,10 @@
-name: Build and verify v1.0.6 packages
+name: Build and verify v1.0.7 packages
 
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish v1.0.6 after all packages pass verification
+        description: Publish v1.0.7 after all packages pass verification
         type: boolean
         default: false
 
@@ -19,22 +19,22 @@ jobs:
   windows:
     uses: ./.github/workflows/windows-setup.yml
     with:
-      version: '1.0.6'
+      version: '1.0.7'
 
   macos:
     uses: ./.github/workflows/macos-dmg.yml
     with:
-      version: '1.0.6'
+      version: '1.0.7'
 
   linux:
     uses: ./.github/workflows/linux.yml
     with:
-      version: '1.0.6'
+      version: '1.0.7'
 
   harmonyos:
     uses: ./.github/workflows/harmonyos.yml
     with:
-      version: '1.0.6'
+      version: '1.0.7'
 
   publish:
     if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
@@ -70,14 +70,14 @@ jobs:
           set -euo pipefail
           cd packages
           packages=(
-            xiaohongshu-monitor-v1.0.6-windows-x64-setup.exe
-            xiaohongshu-monitor-v1.0.6-windows-x86-setup.exe
-            xiaohongshu-monitor-v1.0.6-macos-arm64.dmg
-            xiaohongshu-monitor-v1.0.6-macos-x86_64.dmg
-            xiaohongshu-monitor-v1.0.6-linux-amd64.deb
-            xiaohongshu-monitor-v1.0.6-harmonyos-browser.zip
+            xiaohongshu-monitor-v1.0.7-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.0.7-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.0.7-macos-arm64.dmg
+            xiaohongshu-monitor-v1.0.7-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.0.7-linux-amd64.deb
+            xiaohongshu-monitor-v1.0.7-harmonyos-browser.zip
           )
           sha256sum "${packages[@]}" > SHA256SUMS.txt
-          gh release create v1.0.6 "${packages[@]}" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title 'v1.0.6' \
+          gh release create v1.0.7 "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.0.7' \
             --notes-file ../RELEASE.md --latest

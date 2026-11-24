@@ -14,10 +14,10 @@
 
 | 系统 | 下载 | 发布说明 |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-windows-x86-setup.exe) | [v1.0.6](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.6) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-macos-x86_64.dmg) | [v1.0.6](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.6) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-linux-amd64.deb) | [v1.0.6](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.6) |
-| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.6/xiaohongshu-monitor-v1.0.6-harmonyos-browser.zip) | [v1.0.6](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.6) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-windows-x86-setup.exe) | [v1.0.7](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.7) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-macos-x86_64.dmg) | [v1.0.7](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.7) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-linux-amd64.deb) | [v1.0.7](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.7) |
+| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.7/xiaohongshu-monitor-v1.0.7-harmonyos-browser.zip) | [v1.0.7](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.7) |
 
 Windows 版要求 Windows 10 或更新版本，支持 Microsoft Edge、Google Chrome 和 360 系列浏览器的 Chromium 极速模式。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
@@ -29,7 +29,7 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 
 ### Linux
 
-在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.0.6-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
+在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.0.7-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
 
 如果系统里已安装版本号更高的旧版，APT 会提示确认降级。
 
@@ -58,11 +58,11 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 
 ## 日期范围和划屏
 
-v1.0.6 支持按开始日期停止划屏。选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
+v1.0.7 支持按开始日期停止划屏。选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
 
 ## 模板与输出
 
-v1.0.6 支持结构化模板。从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
+v1.0.7 支持结构化模板。从 [报告生成模板.md](报告生成模板.md) 复制一份，在「分析规则」写下 AI 需要遵循的证据和判断口径，再修改 `report-schema` 代码块中的 JSON。
 
 - `analysisFields` 定义单篇笔记的输出字段、列名和判断要求。字段支持文本、布尔值及枚举。
 - `summarySections` 定义总结的标题、顺序和写作要求。
