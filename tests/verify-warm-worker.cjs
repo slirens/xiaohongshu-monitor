@@ -40,7 +40,7 @@ if (process.env.XHS_VERIFY_WARM_WORKER === 'child') {
     const format = JSON.parse(request.body).text.format.name;
     const response = format === 'note_analysis'
       ? { relevant: true, sentiment: '正面', topic: '预热核查主题', summary: '根据测试样本得出。' }
-      : { coverage: '样本范围', themes: '主要议题', risks: '待核实事项' };
+      : { coverage: '样本范围', themes: '主要议题', risks: '待核实事项', engagement_update: '互动变化研判' };
     return { ok: true, json: async () => ({ status: 'completed', output: [
       { content: [{ type: 'output_text', text: JSON.stringify(response) }] },
     ] }) };

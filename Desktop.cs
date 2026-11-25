@@ -14,9 +14,9 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyVersion("1.0.7.0")]
-[assembly: AssemblyFileVersion("1.0.7.0")]
-[assembly: AssemblyInformationalVersion("1.0.7")]
+[assembly: AssemblyVersion("1.0.8.0")]
+[assembly: AssemblyFileVersion("1.0.8.0")]
+[assembly: AssemblyInformationalVersion("1.0.8")]
 
 internal sealed partial class Desktop : Form
 {
@@ -51,6 +51,7 @@ internal sealed partial class Desktop : Form
     private readonly ProgressBar progress = new ProgressBar();
     private readonly Button run = MakeButton(Ui("开始监控", "Start monitoring"), true);
     private readonly Button open = MakeButton(Ui("打开报告目录", "Open reports"), false);
+    private readonly Button importReport = MakeButton(Ui("继续监控…", "Continue monitoring…"), false);
     private readonly Button exportDiagnostics = MakeButton(Ui("导出诊断日志", "Export diagnostics"), false);
     private readonly NotifyIcon tray = new NotifyIcon();
     private readonly JavaScriptSerializer json = new JavaScriptSerializer();
@@ -59,6 +60,9 @@ internal sealed partial class Desktop : Form
         "XhsMonitor", "diagnostics");
     private string latestDiagnosticsFile;
     private string report;
+    private string continuationReport = "";
+    private string latestContinuationReport;
+    private bool importingReport;
     private bool running;
     private bool cancelRequested;
     private bool exitRequested;
@@ -71,6 +75,7 @@ internal sealed partial class Desktop : Form
     private Rectangle setupBounds, browserBounds;
     private Size setupMinimum;
     private Action showTaskDetails;
+    private Action refreshReportHeader;
 
     [STAThread]
     private static int Main(string[] args)
@@ -136,7 +141,13 @@ internal sealed partial class Desktop : Form
         sideTitle.Font = HeadingFont(13);
         sideTitle.Anchor = AnchorStyles.Left;
         sidebar.Controls.Add(sideTitle, 0, 1);
-        sidebar.Controls.Add(new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty }, 0, 2);
+        var usageNotice = new Label {
+            Text = Ui("仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。",
+                "For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach."),
+            Dock = DockStyle.Fill, Margin = Padding.Empty, ForeColor = Muted,
+            Font = new Font(Font.FontFamily, 8.5f), TextAlign = ContentAlignment.BottomLeft
+        };
+        sidebar.Controls.Add(usageNotice, 0, 2);
         var page = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, AutoScroll = true,
             Padding = new Padding(32, 37, 32, 18), Margin = Padding.Empty, RowCount = 6, ColumnCount = 1 };
         page.RowStyles.Add(new RowStyle(SizeType.Absolute, 83));
@@ -176,11 +187,59 @@ internal sealed partial class Desktop : Form
         Resize += delegate { if (WindowState == FormWindowState.Minimized) HideToTray(); };
         var title = Caption(Ui("新建监控任务", "New monitoring task"), Ink);
         title.Font = HeadingFont(21);
-        title.Location = new Point(0, 0);
+        title.AutoSize = false;
+        title.AutoEllipsis = true;
         var subtitle = Caption(Ui("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report."), Muted);
-        subtitle.Location = new Point(0, 40);
-        header.Controls.AddRange(new Control[] { title, subtitle });
+        subtitle.AutoSize = false;
+        subtitle.AutoEllipsis = true;
+        var resetTask = MakeButton(Ui("新建监控", "New task"), false);
+        resetTask.Width = English ? 87 : 92;
+        resetTask.Visible = false;
+        importReport.Width = English ? 158 : 120;
+        var modes = new FlowLayoutPanel { Dock = DockStyle.Right, Width = importReport.Width, WrapContents = false,
+            FlowDirection = FlowDirection.RightToLeft, Margin = Padding.Empty, Padding = new Padding(0, 1, 0, 0) };
+        importReport.Margin = Padding.Empty;
+        resetTask.Margin = new Padding(0, 0, 7, 0);
+        modes.Controls.Add(importReport);
+        modes.Controls.Add(resetTask);
+        var reportHint = new ToolTip();
+        FormClosed += delegate { reportHint.Dispose(); };
+        latestContinuationReport = LatestReport();
+        Action layoutHeader = delegate {
+            bool continuing = continuationReport.Length != 0;
+            string selected = continuing ? continuationReport : latestContinuationReport;
+            title.Text = continuing ? Ui("继续监控", "Continue monitoring") : Ui("新建监控任务", "New monitoring task");
+            subtitle.Text = selected != null ? (continuing ? Ui("基于报告  ", "Using report  ") : Ui("上次报告  ", "Last report  ")) + Path.GetFileName(selected) :
+                Ui("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report.");
+            subtitle.SetBounds(0, 44, header.ClientSize.Width, Math.Max(23, subtitle.Font.Height * 2 + 2));
+            reportHint.SetToolTip(subtitle, selected != null ? subtitle.Text : "");
+            bool showReset = continuing && !importingReport;
+            resetTask.Visible = showReset;
+            importReport.Width = continuing ? (English ? 127 : 110) : (English ? 158 : 120);
+            modes.Width = importReport.Width + (showReset ? resetTask.Width + resetTask.Margin.Right : 0);
+            title.SetBounds(0, 0, Math.Max(1, header.ClientSize.Width - modes.Width - 8), Math.Max(40, title.Font.Height + 3));
+            importReport.Text = importingReport ? Ui("正在读取…", "Reading…") : continuing
+                ? Ui("更换报告…", "Change report…") : selected != null ? Ui("继续监控", "Continue monitoring") :
+                    Ui("继续监控…", "Continue monitoring…");
+            run.Text = continuing ? Ui("开始续查", "Run follow-up") : Ui("开始监控", "Start monitoring");
+        };
+        refreshReportHeader = layoutHeader;
+        header.Controls.AddRange(new Control[] { title, modes, subtitle });
+        subtitle.BringToFront();
+        header.SizeChanged += delegate { layoutHeader(); };
+        importReport.Click += async delegate { await ImportPreviousReport(layoutHeader); };
+        resetTask.Click += delegate {
+            continuationReport = "";
+            keyword.Clear();
+            DateTime today = DateTime.UtcNow.AddHours(8).Date;
+            start.SetDate(today);
+            end.SetDate(today);
+            status.Text = Ui("●  准备就绪", "●  Ready");
+            layoutHeader();
+            keyword.Focus();
+        };
         page.Controls.Add(header, 0, 0);
+        layoutHeader();
 
         var settings = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, Margin = Padding.Empty,
             ColumnCount = 2, RowCount = 2 };
@@ -467,9 +526,90 @@ internal sealed partial class Desktop : Form
         }
     }
 
+    private sealed class ReportMetadata
+    {
+        public string[] keywords { get; set; }
+        public string start { get; set; }
+        public string error { get; set; }
+    }
+
+    private async Task ImportPreviousReport(Action refresh)
+    {
+        if (running || importingReport) return;
+        string path = continuationReport.Length == 0 ? latestContinuationReport : null;
+        bool automatic = File.Exists(path);
+        if (!automatic) using (var picker = new OpenFileDialog { Title = Ui("导入上次监控报告", "Import the previous monitoring report"),
+            Filter = Ui("Excel 工作簿|*.xlsx", "Excel workbook|*.xlsx"), CheckFileExists = true }) {
+            picker.InitialDirectory = Path.Combine(home, "reports");
+            picker.FileName = Path.GetFileName(continuationReport);
+            if (picker.ShowDialog(this) != DialogResult.OK) return;
+            path = picker.FileName;
+        }
+        importingReport = true;
+        importReport.Enabled = false;
+        run.Enabled = false;
+        refresh();
+        try {
+            ReportMetadata metadata = await ReadPreviousReport(path);
+            if (IsDisposed) return;
+            ApplyPreviousReport(path, metadata);
+        } catch (Exception error) {
+            if (automatic) latestContinuationReport = null;
+            if (!IsDisposed) MessageBox.Show(this, error.Message, Ui("无法导入上次报告", "Could not import the previous report"));
+        } finally {
+            importingReport = false;
+            if (!IsDisposed) {
+                importReport.Enabled = true;
+#if DISTRIBUTION
+                run.Enabled = licenseAllowed;
+#else
+                run.Enabled = true;
+#endif
+                refresh();
+            }
+        }
+    }
+
+    private Task<ReportMetadata> ReadPreviousReport(string path)
+    {
+        return Task.Run(async delegate {
+            using (var worker = StartWorker(inspectReport: path)) {
+                worker.StandardInput.Close();
+                var read = Task.WhenAll(worker.StandardOutput.ReadToEndAsync(), worker.StandardError.ReadToEndAsync());
+                if (await Task.WhenAny(read, Task.Delay(30000)) != read) {
+                    StopIdleWorker(worker);
+                    throw new TimeoutException(Ui("读取报告超时。", "Reading the report timed out."));
+                }
+                string result = (await read)[0];
+                var metadata = String.IsNullOrWhiteSpace(result) ? null : new JavaScriptSerializer().Deserialize<ReportMetadata>(result);
+                if (metadata == null || !String.IsNullOrEmpty(metadata.error)) throw new InvalidDataException(metadata == null
+                    ? Ui("无法读取这份报告。", "Could not read this report.") : metadata.error);
+                return metadata;
+            }
+        });
+    }
+
+    private void ApplyPreviousReport(string path, ReportMetadata metadata)
+    {
+        continuationReport = path;
+        keyword.Text = String.Join(" ", metadata.keywords ?? new string[0]);
+        DateTime today = DateTime.UtcNow.AddHours(8).Date;
+        DateTime suggested;
+        bool hasStart = DateTime.TryParseExact(metadata.start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out suggested)
+            && suggested >= DateTimePicker.MinimumDateTime && suggested <= today;
+        start.SetDate(hasStart ? suggested : today);
+        end.SetDate(today);
+        status.Text = String.IsNullOrWhiteSpace(keyword.Text)
+            ? Ui("报告已导入，请补填关键词。", "Report imported. Enter the keywords.") :
+            !hasStart ? Ui("报告已导入，请确认搜索日期。", "Report imported. Check the search dates.") :
+            Ui("报告已导入，可增删关键词。", "Report imported. Add or remove keywords.");
+        keyword.Focus();
+        keyword.SelectionStart = keyword.TextLength;
+    }
+
     private async Task StartReport()
     {
-        if (running) return;
+        if (running || importingReport) return;
 #if DISTRIBUTION
         if (!licenseAllowed) return;
 #endif
@@ -594,6 +734,11 @@ internal sealed partial class Desktop : Form
             run.Enabled = licenseAllowed;
 #endif
             progress.Visible = false;
+            if (File.Exists(report)) {
+                latestContinuationReport = report;
+                if (continuationReport.Length != 0) continuationReport = report;
+                refreshReportHeader();
+            }
             RestoreSetupView();
             if (!cancelRequested && !File.Exists(report)) showTaskDetails();
             if (exitRequested) Close();
@@ -672,7 +817,7 @@ internal sealed partial class Desktop : Form
         return null;
     }
 
-    private Process StartWorker(bool warmBrowser = false, TaskDiagnostics diagnostics = null)
+    private Process StartWorker(bool warmBrowser = false, TaskDiagnostics diagnostics = null, string inspectReport = null)
     {
         var preparation = Stopwatch.StartNew();
         string runtime = FindRuntime();
@@ -701,7 +846,8 @@ internal sealed partial class Desktop : Form
                 }
             }
             if (diagnostics != null) diagnostics.DesktopEvent(temporary ? "worker_prepared_temp" : "worker_prepared_installed", preparation.ElapsedMilliseconds);
-            execution.Arguments = "\"" + workerPath + "\" --desktop" + (warmBrowser ? " --warm-browser-driver" : "");
+            execution.Arguments = "\"" + workerPath + "\"" + (inspectReport != null
+                ? " --inspect-report \"" + inspectReport + "\"" : " --desktop" + (warmBrowser ? " --warm-browser-driver" : ""));
             var worker = new Process { StartInfo = execution, EnableRaisingEvents = true };
             if (temporary) worker.Exited += delegate { TryDelete(workerPath); };
             if (!worker.Start()) throw new InvalidOperationException(Ui("未能启动采集程序。", "Could not start the collection process."));
@@ -726,6 +872,7 @@ internal sealed partial class Desktop : Form
         var bounds = browserBounds.IsEmpty ? null : new { left = browserBounds.Left, top = browserBounds.Top,
             width = browserBounds.Width, height = browserBounds.Height };
         var request = new { keyword = term, start = DateText(from), end = DateText(to), source, template, sort = sort,
+            continueReport = continuationReport,
             screens = ParseScreenCount(), browserBounds = bounds, provider = aiProvider.Text,
             model = aiModel.Text.Trim(), endpoint = qwenEndpoint.Enabled ? qwenEndpoint.Text.Trim() : "",
             apiKey = key, defaultBrowserExecutable = DefaultBrowserExecutable() ?? "", startInBackground = !Visible };
@@ -1094,9 +1241,21 @@ internal sealed partial class Desktop : Form
             worker.WaitForExit();
             string prefix = Ui("已生成 Excel：", "Excel report: ");
             string[] outputs = result.Split('\n').Where(line => line.StartsWith(prefix)).ToArray();
-            return worker.ExitCode == 0 && outputs.Length == 1 &&
+            bool firstRun = worker.ExitCode == 0 && outputs.Length == 1 &&
                 outputs.All(line => File.Exists(line.Substring(prefix.Length).Trim())) &&
-                result.Contains("UI_PROGRESS 1/2") && result.Contains("UI_PROGRESS 2/2") ? 0 : 1;
+                result.Contains("UI_PROGRESS 1/2") && result.Contains("UI_PROGRESS 2/2");
+            if (!firstRun) return 1;
+            try {
+                string previous = LatestReport();
+                if (previous != outputs[0].Substring(prefix.Length).Trim()) return 11;
+                var metadata = ReadPreviousReport(previous).GetAwaiter().GetResult();
+                ApplyPreviousReport(previous, metadata);
+                refreshReportHeader();
+                if (keyword.Text != "之禾 咖啡" || run.Text != Ui("开始续查", "Run follow-up")) return 12;
+                DateTime date;
+                DateTime today = DateTime.UtcNow.AddHours(8).Date;
+                return start.TryRead(out date) && date == (day <= today ? day : today) ? 0 : 13;
+            } catch (Exception) { return 14; }
         }
     }
 
@@ -1104,6 +1263,7 @@ internal sealed partial class Desktop : Form
     {
         if (Text != Ui("小红书舆情监控", "Xiaohongshu Monitor") ||
             run.Text != Ui("开始监控", "Start monitoring") ||
+            !importReport.Text.StartsWith(Ui("继续监控", "Continue monitoring"), StringComparison.Ordinal) ||
             start.AccessibleName != Ui("开始日期", "Start date")) return 9;
         DateTime selected;
         if (!start.TryRead(out selected) || selected != DateTime.UtcNow.AddHours(8).Date) return 10;
@@ -1350,6 +1510,8 @@ internal sealed partial class Desktop : Form
             return DateTime.TryParseExact(Editor.Text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out value)
                 && value >= DateTimePicker.MinimumDateTime && value <= DateTimePicker.MaximumDateTime;
         }
+
+        internal void SetDate(DateTime value) { Editor.Text = DateText(value); }
 
         private void OpenCalendar()
         {

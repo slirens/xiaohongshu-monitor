@@ -1,5 +1,5 @@
 import { parseDisplayedDate, presetsCovering } from './dates.mjs';
-import { ReportNote, KeywordReport } from './workbook.mjs';
+import { normalizeEngagement } from './engagement.mjs';
 import { checkAbort } from './cancel.mjs';
 import { dateFilterCaption, t } from './i18n.mjs';
 
@@ -24,7 +24,7 @@ function noteAddress(value) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function collectKeyword(browser, keyword, range, ask, progress, signal) {
+export async function collectKeyword(browser, keyword, range, ask, progress, signal, tracked = []) {
   const search = new URL('/search_result', base);
   search.searchParams.set('keyword', keyword);
   const isSearch = value => {
@@ -126,10 +126,9 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
 
   const inRange = [...cards].filter(([, card]) => card.date && card.date >= range.start && card.date <= range.end);
   const notes = [];
-  for (const [index, [id, card]] of inRange.entries()) {
-    checkAbort(signal);
-    await browser.navigate(card.href);
-    const detail = await wait(async () => {
+  const readNote = async (id, href) => {
+    await browser.navigate(href);
+    return wait(async () => {
       const current = noteAddress(await browser.url());
       if (current?.id !== id || !current.url.pathname.startsWith('/explore/')) return null;
       const note = await browser.evaluate('note');
@@ -139,16 +138,40 @@ export async function collectKeyword(browser, keyword, range, ask, progress, sig
       }
       return null;
     }, 7000);
+  };
+  for (const [index, [id, card]] of inRange.entries()) {
+    checkAbort(signal);
+    const detail = await readNote(id, card.href);
     if (detail) {
       const { note, url } = detail;
       const date = parseDisplayedDate(note.dateLabel);
       if (date >= range.start && date <= range.end && (note.title + ' ' + note.body).toLowerCase().includes(keyword.toLowerCase())) {
-        notes.push(new ReportNote(note.title, note.body, url, date));
+        notes.push({ id, title: note.title, body: note.body, url, date, dateLabel: note.dateLabel,
+          engagement: normalizeEngagement(note.engagement) });
       }
     } else {
       progress(t(`第 ${index + 1} 条笔记无法确认原文地址，已跳过。`, `Skipped note ${index + 1} because its original link could not be confirmed.`));
     }
     progress(t(`「${keyword}」已读取 ${index + 1}/${inRange.length} 条`, `“${keyword}” · Read ${index + 1}/${inRange.length} notes`));
   }
-  return new KeywordReport(keyword, notes);
+  const refreshed = [];
+  const measured = new Set(notes.filter(note => Object.values(note.engagement).some(value => value !== null)).map(note => note.id));
+  const targets = tracked.flatMap(note => {
+    const address = noteAddress(note.url);
+    return address?.id.toLowerCase() === note.id && !measured.has(note.id) ? [[note, address.url.href]] : [];
+  });
+  for (const [index, [note, url]] of targets.entries()) {
+    checkAbort(signal);
+    progress(t(`正在复查历史笔记 ${index + 1}/${targets.length}…`, `Refreshing earlier notes · ${index + 1}/${targets.length}…`));
+    try {
+      const detail = await readNote(note.id, url);
+      const engagement = normalizeEngagement(detail?.note.engagement);
+      if (Object.values(engagement).some(value => value !== null)) {
+        refreshed.push({ ...note, url: detail.url, engagement });
+      }
+    } catch {
+      checkAbort(signal);
+    }
+  }
+  return { keyword, notes, refreshed };
 }

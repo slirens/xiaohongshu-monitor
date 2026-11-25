@@ -109,24 +109,30 @@ export async function analyzeNote(request) {
     date: excerpt(note.date, 32),
     title: excerpt(note.title, 500),
     body: excerpt(note.body, 6000),
+    engagement: note.engagement,
+    comparison: note.comparison,
   }, 1800);
   return validateAnalysis(text, template);
 }
 
-export async function summarizeKeyword(request) {
-  const { keyword, notes, template, range } = request;
-  const sample = notes.slice(0, MAX_NOTES).map(note => ({
+export async function summarizeRun(request) {
+  const { state, reports, template } = request;
+  const findings = state.notes.filter(note => note.changeType !== 'not_seen')
+    .sort((first, second) => Math.abs(second.comparison?.comments?.delta ?? 0) - Math.abs(first.comparison?.comments?.delta ?? 0))
+    .slice(0, MAX_NOTES).map(note => ({
+    keywords: note.keywords,
+    changeType: note.changeType,
     date: excerpt(note.date, 32),
     title: excerpt(note.title, 300),
     body: excerpt(note.body, 1000),
     analysis: note.analysis,
+    engagement: note.engagement,
+    comparison: note.comparison,
   }));
   const text = await requestReport(request, summaryInstructions(template), summarySchema(template), {
-    keyword: excerpt(keyword, 100),
-    range: range ? { start: range.start, end: range.end } : undefined,
-    collected: notes.length,
-    sampled: sample.length,
-    notes: sample,
+    scopes: reports.map(report => ({ ...report.info, matched: report.notes.length })),
+    update: state.runs.at(-1),
+    findings,
   }, 4000);
   return validateSummary(text, template);
 }

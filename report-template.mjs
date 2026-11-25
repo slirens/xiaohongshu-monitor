@@ -1,7 +1,16 @@
 const textLimit = 12000;
+const metrics = { likes: '点赞', saves: '收藏', comments: '评论' };
+const metricColumns = Object.entries(metrics).flatMap(([key, label]) => [
+  [key + '_previous', label + '上次', 'previous'],
+  [key, label + '本次', 'current'],
+  [key + '_delta', label + '增减', 'delta'],
+  [key + '_rate', label + '涨幅', 'rate'],
+].map(([column, heading, attribute]) => ({ column, heading, attribute, key })));
 const columnTitles = Object.freeze({
   keyword: '关键词', date: '发布日期', title: '标题', body: '正文',
   url: '原文地址', analysis_status: '分析状态', date_label: '网页日期原文',
+  first_seen: '首次发现日期', engagement_status: '本轮数据状态',
+  ...Object.fromEntries(metricColumns.map(({ column, heading }) => [column, heading])),
 });
 const sentiments = ['正面', '中性', '负面', '混合', '无法判断'];
 const defaultFields = [
@@ -14,8 +23,10 @@ const defaultSections = [
   { key: 'coverage', title: '样本范围', instruction: '说明时间范围、样本数量和分析覆盖情况。' },
   { key: 'themes', title: '主要议题', instruction: '归纳样本中的共同话题和具体反馈。' },
   { key: 'risks', title: '风险与待核实事项', instruction: '列出有依据的风险线索，区分已观察事实和待核实判断。' },
+  { key: 'engagement_update', title: '互动变化研判', instruction: '指出本次新发现和已有笔记互动的重要变化。使用供给的可比样本、绝对增减和涨幅，标明统计限制。' },
 ];
-const detail = ['date', 'title', 'body', 'url', 'relevant', 'sentiment', 'topic', 'summary', 'analysis_status', 'date_label'];
+const detail = ['date', 'title', 'body', 'url', 'relevant', 'sentiment', 'topic', 'summary', 'analysis_status', 'date_label',
+  'first_seen', 'engagement_status', ...metricColumns.map(({ column }) => column)];
 const defaultSheets = [
   { kind: 'summary', name: '总结' },
   { kind: 'overview', name: '总表', columns: ['keyword', ...detail] },
@@ -192,8 +203,10 @@ function instructions(template, role, fields, extra = '') {
   ].filter(Boolean).join('\n');
 }
 
-export const analysisInstructions = template => instructions(template, '单篇笔记分析', template.fields);
-export const summaryInstructions = template => instructions(template, '样本总结', template.sections, template.summaryRules);
+const countRules = '互动字段为采集快照。null 表示缺失或涨幅不可计算，只引用给出的数值。涨幅为小数，1 表示上涨 100%。互动量仅表明参与度，情绪须根据内容判断。';
+export const analysisInstructions = template => instructions(template, '单篇笔记分析', template.fields, countRules);
+export const summaryInstructions = template => instructions(template, '样本总结', template.sections,
+  [template.summaryRules, countRules, '已有笔记的互动变化与新发现笔记分开写。各项合计基于可比帖子，区分本轮发现时间和帖子发布日期。'].filter(Boolean).join('\n'));
 
 function cellText(value, max = 32000) {
   if (typeof value !== 'string') return '';
@@ -252,9 +265,12 @@ export function makeReportSheets(template, reports, options = {}) {
   const titles = new Map(Object.entries(columnTitles));
   for (const field of template.fields) titles.set(field.key, field.title);
   const used = new Set(template.sheets.filter(sheet => sheet.name).map(sheet => sheet.name.toLowerCase()));
+  used.add('_xhs_continuation');
+  const state = options.continuationState;
+  const allRows = state?.notes.map(note => [{ keyword: note.keywords.join('、') }, note]);
   const notesByDate = new Map();
   if (template.sheets.some(sheet => sheet.kind === 'date')) {
-    for (const report of reports) for (const note of report.notes) {
+    for (const [report, note] of allRows ?? reports.flatMap(report => report.notes.map(note => [report, note]))) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(note.date)) continue;
       if (!notesByDate.has(note.date)) notesByDate.set(note.date, []);
       notesByDate.get(note.date).push([report, note]);
@@ -266,22 +282,54 @@ export function makeReportSheets(template, reports, options = {}) {
       keyword: report.keyword, date: note?.date, title: note?.title, body: note?.body, url: noteLink(note?.url),
       analysis_status: note?.analysis ? '完成' : note?.error || (report.failed ? '采集失败，详见执行日志' : '未分析'),
       date_label: note?.dateLabel,
+      first_seen: note?.firstSeen?.slice(0, 10),
+      engagement_status: ({ new: '首次发现', refreshed: '本轮已复查', not_seen: '本轮未取得数据' })[note?.changeType],
     };
+    for (const { column, attribute, key } of metricColumns) {
+      const comparison = note?.comparison?.[key];
+      raw[column] = attribute === 'current' && !comparison && note?.changeType !== 'not_seen' ? note?.engagement?.[key] : comparison?.[attribute];
+    }
     return columns.map(key => {
       const value = Object.hasOwn(raw, key) ? raw[key] : note?.analysis?.[key];
-      return typeof value === 'boolean' ? (value ? '是' : '否') : cellText(value);
+      return typeof value === 'boolean' ? (value ? '是' : '否') : typeof value === 'number' && Number.isFinite(value) ? value : cellText(value);
     });
   };
   const makeDetail = (config, name, entries) => ({
     name, headings: config.columns.map(key => titles.get(key)),
     rows: entries.map(([report, note]) => cells(report, note, config.columns)),
     linkColumn: config.columns.indexOf('url'),
+    formats: config.columns.map(key => metricColumns.some(metric => metric.column === key)
+      ? key.endsWith('_rate') ? '+0.0%;-0.0%;0.0%' : key.endsWith('_delta') ? '+0;-0;0' : '0' : undefined),
   });
-  const reportRows = report => report.failed ? [[report, undefined]] : report.notes.map(note => [report, note]);
+  const reportRows = report => report.failed && !report.notes.length ? [[report, undefined]] : report.notes.map(note => [report, note]);
   const summaryRows = () => {
     const rows = [['报告模板', cellText(template.name)]];
+    if (state) {
+      const updates = state.runs.slice().reverse();
+      rows.push(['互动统计口径', '按同一帖子两次实际取得的数值计算。空白表示缺失或不可计算。上次为 0 时只显示增减数。']);
+      for (const [index, run] of updates.entries()) {
+        rows.push([`${run.day} · ${run.continued ? '舆情更新' : '首次基线'}`, `监控范围 ${run.start} 至 ${run.end}`],
+          ['本轮搜索关键词', run.keywords.join('、')], ['新发现笔记', run.newNotes], ['已复查历史笔记', run.refreshedNotes]);
+        if (run.failedKeywords.length) rows.push(['未完成关键词', run.failedKeywords.join('、')]);
+        for (const [key, label] of Object.entries(metrics)) {
+          const stats = run.engagement[key];
+          if (!stats?.count) {
+            rows.push([`${label}变化`, '暂无两次均取得的数据']);
+            continue;
+          }
+          const sign = stats.delta > 0 ? '+' : '';
+          const percent = stats.rate === null ? '基数为 0，涨幅不适用'
+            : `涨幅 ${stats.rate > 0 ? '+' : ''}${(stats.rate * 100).toFixed(1)}%`;
+          rows.push([`${label}变化`, `${stats.count} 篇可比 · ${stats.previous} → ${stats.current} · ${sign}${stats.delta} · ${percent}`]);
+        }
+        const narrative = index === 0 ? options.summary : run.summaries;
+        if (narrative) for (const part of template.sections) {
+          if (narrative[part.key]) rows.push([part.title, cellText(narrative[part.key])]);
+        }
+      }
+    }
     if (options.summaryStatus) rows.push(['AI 综合总结', cellText(options.summaryStatus)]);
-    if (options.summary) for (const part of template.sections) rows.push([part.title, cellText(options.summary[part.key])]);
+    if (!state && options.summary) for (const part of template.sections) rows.push([part.title, cellText(options.summary[part.key])]);
     for (const report of reports) {
       rows.push(['关键词', cellText(report.keyword)], ['命中样本', report.failed ? '未完成' : report.notes.length],
         ['已分析', report.notes.filter(note => note.analysis).length]);
@@ -308,7 +356,7 @@ export function makeReportSheets(template, reports, options = {}) {
   };
   return template.sheets.flatMap(config => {
     if (config.kind === 'summary') return [{ name: config.name, headings: ['指标', '值'], rows: summaryRows(), linkColumn: -1 }];
-    if (config.kind === 'overview') return [makeDetail(config, config.name, reports.flatMap(reportRows))];
+    if (config.kind === 'overview') return [makeDetail(config, config.name, allRows ?? reports.flatMap(reportRows))];
     if (config.kind === 'date') return [...dateNames].map(([date, name]) => makeDetail(config, name, notesByDate.get(date)));
     if (template.legacy && reports.length < 2 && !options.includeSingleKeyword) return [];
     return reports.map(report => makeDetail(config, sheetName(report.keyword, used), reportRows(report)));

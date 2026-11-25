@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 output="${1:?Usage: bash macos/build-dmg.sh OUTPUT_DIRECTORY VERSION}"
-version="${2:?Provide a release version such as 1.0.1}"
+version="${2:?Provide a release version such as 1.0.8}"
 arch="$(uname -m)"
 [[ "$(uname -s)" == Darwin && ( "$arch" == arm64 || "$arch" == x86_64 ) ]]
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]

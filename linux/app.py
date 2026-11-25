@@ -60,6 +60,14 @@ def date_value(value):
     return date.fromisoformat(value)
 
 
+def latest_report(home):
+    try:
+        return max((path for path in (home / "reports").glob("舆情_*.xlsx") if path.is_file()),
+                   key=lambda path: path.stat().st_mtime, default=None)
+    except OSError:
+        return None
+
+
 class Worker:
     def __init__(self, home, *, warm_browser=False):
         self.events = Queue()
@@ -124,6 +132,9 @@ class Monitor:
         self.prepared_worker = None
         self.dialog = None
         self.report = None
+        self.previous_report = None
+        self.last_report = latest_report(home)
+        self.importing_report = False
         self.result = None
         self.progress_history = []
         self.cancelled = False
@@ -193,6 +204,7 @@ class Monitor:
         theme.configure("Card.TLabel", background=SURFACE)
         theme.configure("Side.TFrame", background=SIDEBAR)
         theme.configure("Side.TLabel", background=SIDEBAR, font=(family, 12))
+        theme.configure("SideNotice.TLabel", background=SIDEBAR, foreground=MUTED, font=(family, 9))
         theme.configure("TButton", padding=(12, 8), background=SURFACE,
                         foreground=INK, bordercolor=EDGE, lightcolor=SURFACE, darkcolor=SURFACE)
         theme.map("TButton", background=[("active", FIELD)], bordercolor=[("focus", FOCUS)])
@@ -226,6 +238,10 @@ class Monitor:
                             self.cover.transparency_set(sx, sy, True)
             ttk.Label(sidebar, image=self.cover, style="Side.TLabel").pack(anchor="w", pady=(0, 17))
         ttk.Label(sidebar, text=APP_NAME, style="Side.TLabel").pack(anchor="w")
+        ttk.Label(sidebar, style="SideNotice.TLabel", wraplength=175, justify="left", text=t(
+            "仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。",
+            "For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach.",
+        )).pack(side="bottom", fill="x", pady=(12, 0))
 
         content = ttk.Frame(shell, padding=(38, 32, 35, 22))
         content.pack(side="left", fill="both", expand=True)
@@ -252,10 +268,16 @@ class Monitor:
         for target in (panel, viewport):
             target.bind("<Button-4>", lambda _: viewport.yview_scroll(-2, "units"))
             target.bind("<Button-5>", lambda _: viewport.yview_scroll(2, "units"))
-        ttk.Label(panel, text=t("新建监控任务", "New monitoring task"), style="Title.TLabel").pack(anchor="w")
-        ttk.Label(panel, text=t("按关键词和日期采集笔记，导出 Excel 报告。",
-                               "Collect notes by keyword and date, then export an Excel report."),
-                  style="Muted.TLabel", wraplength=440).pack(anchor="w", pady=(6, 24))
+        self.task_title = ttk.Label(panel, style="Title.TLabel")
+        self.task_title.pack(anchor="w")
+        self.report_label = ttk.Label(panel, style="Muted.TLabel", wraplength=440)
+        self.report_label.pack(anchor="w", pady=(6, 9))
+        self.report_actions = ttk.Frame(panel)
+        self.report_actions.pack(fill="x", pady=(0, 18))
+        self.continue_button = ttk.Button(self.report_actions, command=self.import_previous_report)
+        self.continue_button.pack(side="left")
+        self.reset_task = ttk.Button(self.report_actions, text=t("新建监控", "New task"), command=self.new_task)
+        self.refresh_report_selection()
 
         card = ttk.Frame(panel, style="Card.TFrame")
         card.pack(fill="x")
@@ -501,8 +523,117 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
             except (OSError, ValueError, subprocess.TimeoutExpired) as error:
                 messagebox.showerror(t("无法导入模板", "Could not import template"), str(error), parent=self.window)
 
+    def refresh_report_selection(self):
+        selected = self.previous_report or self.last_report
+        self.task_title.configure(text=t("继续监控", "Continue monitoring") if self.previous_report else
+                                  t("新建监控任务", "New monitoring task"))
+        self.report_label.configure(text=(t("基于报告  ", "Using report  ") if self.previous_report else
+                                         t("上次报告  ", "Last report  ")) + selected.name if selected else
+                                    t("按关键词和日期采集笔记，导出 Excel 报告。",
+                                      "Collect notes by keyword and date, then export an Excel report."))
+        self.continue_button.configure(
+            text=t("正在读取…", "Reading…") if self.importing_report else
+            t("更换报告…", "Change report…") if self.previous_report else
+            t("继续监控", "Continue monitoring") if selected else t("继续监控…", "Continue monitoring…"),
+            state="disabled" if self.worker or self.importing_report else "normal",
+        )
+        if self.previous_report:
+            self.reset_task.pack(side="left", padx=(8, 0))
+            self.reset_task.configure(state="disabled" if self.worker or self.importing_report else "normal")
+        else:
+            self.reset_task.pack_forget()
+        self.run.configure(text=t("开始续查", "Run follow-up") if self.previous_report else
+                           t("开始监控", "Start monitoring"),
+                           state="disabled" if self.worker or self.importing_report else "normal")
+
+    def new_task(self):
+        self.previous_report = None
+        self.keyword.delete("1.0", "end")
+        today = datetime.now(SHANGHAI).date().isoformat()
+        self.start_date.set(today)
+        self.end_date.set(today)
+        self.status.set(t("准备就绪", "Ready"))
+        self.refresh_report_selection()
+        self.keyword.focus_set()
+
+    def import_previous_report(self):
+        if self.worker or self.importing_report:
+            return
+        path = self.last_report if not self.previous_report else None
+        automatic = bool(path and path.is_file())
+        if not automatic:
+            current = self.previous_report or self.last_report
+            selected = filedialog.askopenfilename(
+                parent=self.window, title=t("导入上次监控报告", "Import the previous monitoring report"),
+                filetypes=[(t("Excel 工作簿", "Excel workbook"), "*.xlsx")],
+                initialdir=str(current.parent if current else self.home / "reports"),
+                initialfile=current.name if current else "",
+            )
+            if not selected:
+                return
+            path = Path(selected)
+        self.importing_report = True
+        self.refresh_report_selection()
+        result = Queue(maxsize=1)
+
+        def inspect():
+            try:
+                checked = subprocess.run(
+                    [str(APP_ROOT / "runtime" / "node"), str(APP_ROOT / "monitor.mjs"), "--inspect-report", str(path)],
+                    text=True, encoding="utf-8", capture_output=True, timeout=30,
+                    env={**os.environ, "XHS_UI_LANG": UI_LANG},
+                )
+                metadata = json.loads(checked.stdout)
+                if metadata.get("error"):
+                    raise ValueError(metadata["error"])
+                if checked.returncode:
+                    raise ValueError(t("无法读取这份报告。", "Could not read this report."))
+                result.put((metadata, None))
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                result.put((None, str(error)))
+
+        def complete():
+            try:
+                metadata, error = result.get_nowait()
+            except Empty:
+                self.window.after(50, complete)
+                return
+            self.importing_report = False
+            if metadata is None:
+                if automatic:
+                    self.last_report = None
+                if self.verify:
+                    self.status.set(error)
+                else:
+                    messagebox.showerror(t("无法导入上次报告", "Could not import the previous report"), error,
+                                         parent=self.window)
+            else:
+                self.apply_previous_report(path, metadata)
+            self.refresh_report_selection()
+
+        Thread(target=inspect, daemon=True).start()
+        self.window.after(50, complete)
+
+    def apply_previous_report(self, path, metadata):
+        self.previous_report = path
+        terms = metadata.get("keywords") or []
+        self.keyword.delete("1.0", "end")
+        self.keyword.insert("1.0", " ".join(terms))
+        today = datetime.now(SHANGHAI).date()
+        try:
+            suggested = date_value(metadata.get("start") or "")
+            valid_start = suggested <= today
+        except ValueError:
+            valid_start = False
+        self.start_date.set((suggested if valid_start else today).isoformat())
+        self.end_date.set(today.isoformat())
+        self.status.set(t("报告已导入，可增删关键词。", "Report imported. Add or remove keywords.") if terms and valid_start else
+                        t("报告已导入，请确认关键词和日期。", "Report imported. Check the keywords and dates."))
+        self.keyword.mark_set("insert", "end-1c")
+        self.keyword.focus_set()
+
     def start(self, source=""):
-        if self.worker is not None:
+        if self.worker is not None or self.importing_report:
             return
         keyword = self.keyword.get("1.0", "end-1c").strip()
         if not keyword:
@@ -531,6 +662,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         request = {
             "keyword": keyword, "start": start.isoformat(), "end": end.isoformat(),
             "sort": SORT_OPTIONS[self.sort.get()], "screens": count, "source": source,
+            "continueReport": str(self.previous_report) if self.previous_report else "",
             "template": "" if selected == BUILTIN else str(self.templates / (selected + ".md")),
             "provider": self.provider.get(), "model": self.model.get().strip(),
             "endpoint": self.endpoint.get().strip(), "apiKey": self.key.get().strip(),
@@ -552,7 +684,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
-        self.run.configure(state="disabled")
+        self.refresh_report_selection()
         self.stop_button.configure(state="normal")
         self.running_actions.pack(fill="x", before=self.actions, pady=(0, 8))
         self.set_progress(t("正在启动监控…", "Starting monitoring…"))
@@ -662,7 +794,6 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         self.dismiss_prompt()
         self.worker = None
         self.result = code
-        self.run.configure(state="normal")
         self.running_actions.pack_forget()
         if self.closing:
             self.release_prepared_worker()
@@ -671,6 +802,9 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         if self.cancelled:
             message = t("任务已停止", "Task stopped")
         elif self.report is not None and self.report.is_file():
+            self.last_report = self.report
+            if self.previous_report:
+                self.previous_report = self.report
             message = t("已导出报告", "Report exported")
             if code != 0:
                 message += t(" · 部分关键词失败", " · Some keywords failed")
@@ -681,6 +815,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
             if not self.details.winfo_manager():
                 self.toggle_details()
         self.set_progress(message)
+        self.refresh_report_selection()
         notify = shutil.which("notify-send")
         if self.minimized and notify and not self.verify:
             try:
@@ -747,6 +882,34 @@ def verify_app(app, fixture):
     if app.result != 0 or app.report is None or not app.report.is_file():
         raise RuntimeError(app.log.get("1.0", "end-1c"))
     assert [progress.split()[0] for progress in app.progress_history] == ["1/2", "2/2"]
+    first = app.report
+    assert app.last_report == first and latest_report(app.home) == first
+    app.import_previous_report()
+    deadline = monotonic() + 30
+    while app.importing_report and monotonic() < deadline:
+        app.window.update()
+        app.window.tk.call("after", 25)
+    assert app.previous_report == first and not app.importing_report, app.status.get()
+    assert app.keyword.get("1.0", "end-1c") == "宝山 硚口"
+    app.keyword.delete("1.0", "end")
+    app.keyword.insert("1.0", "宝山 新增词")
+    app.start_date.set("2026-11-23")
+    app.end_date.set("2026-11-23")
+    app.start(str(Path(fixture).resolve(strict=True)))
+    assert app.worker is not None, app.status.get()
+    deadline = monotonic() + 30
+    while app.worker and monotonic() < deadline:
+        app.window.update()
+        app.window.tk.call("after", 25)
+    assert app.worker is None and app.result == 0 and app.report.is_file(), app.status.get()
+    assert app.report != first and first.is_file() and app.previous_report == app.report
+    app.new_task()
+    app.import_previous_report()
+    deadline = monotonic() + 30
+    while app.importing_report and monotonic() < deadline:
+        app.window.update()
+        app.window.tk.call("after", 25)
+    assert app.keyword.get("1.0", "end-1c") == "宝山 新增词", app.status.get()
     print(app.report, flush=True)
 
 

@@ -23,6 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.14.0'
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
       - name: Build and unpack the browser extension ZIP
         shell: pwsh
         run: |
@@ -56,10 +57,7 @@ jobs:
           XHS_RUNTIME: ${{ github.workspace }}
           XHS_TEST_DIRECTORY: ${{ runner.temp }}
           XHS_TEST_EXTENSION: ${{ runner.temp }}/unpacked
-        run: |
-          npm.cmd ci --ignore-scripts --omit=dev --no-audit --no-fund
-          if ($LASTEXITCODE) { throw 'Test dependencies could not be installed.' }
-          node harmonyos/tests/verify-extension.mjs
+        run: node harmonyos/tests/verify-extension.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: harmonyos-browser

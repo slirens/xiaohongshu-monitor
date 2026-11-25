@@ -12,7 +12,7 @@
       return;
     }
     try {
-      respond({ ok: true, result: pageRead(message.kind, message.value, origins) });
+      respond({ ok: true, result: pageRead(message.kind, message.value, origins, readEngagementLabels) });
     } catch {
       respond({ ok: false, error: '读取小红书网页时出错。请确认网页正常显示后重试。' });
     }

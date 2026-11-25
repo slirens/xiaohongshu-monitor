@@ -41,6 +41,44 @@ private func worker(home: URL, key: String = "", language: AppLanguage = .system
     return task
 }
 
+private func latestReport(in home: URL) -> URL? {
+    let folder = home.appendingPathComponent("reports", isDirectory: true)
+    let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+    let files = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys),
+                                                              options: .skipsHiddenFiles)
+    return files?.compactMap { file -> (URL, Date)? in
+        guard file.lastPathComponent.hasPrefix("舆情_"), file.pathExtension == "xlsx",
+              let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true else { return nil }
+        return (file, values.contentModificationDate ?? .distantPast)
+    }.max { $0.1 < $1.1 }?.0
+}
+
+private struct ReportMetadata: Decodable, Sendable {
+    let keywords: [String]?
+    let start: String?
+    let error: String?
+}
+
+private func inspectReport(_ report: URL) throws -> ReportMetadata {
+    let task = worker(home: reportHome)
+    task.arguments = [resources.appendingPathComponent("monitor.mjs").path, "--inspect-report", report.path]
+    task.standardInput = FileHandle.nullDevice
+    task.standardError = FileHandle.nullDevice
+    let output = Pipe()
+    task.standardOutput = output
+    try task.run()
+    let timeout = DispatchWorkItem { if task.isRunning { task.terminate() } }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 30, execute: timeout)
+    defer { timeout.cancel() }
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    task.waitUntilExit()
+    guard let metadata = try? JSONDecoder().decode(ReportMetadata.self, from: data) else {
+        throw CocoaError(.fileReadCorruptFile, userInfo: [NSLocalizedDescriptionKey:
+            text("无法读取这份报告。", "Could not read this report.")])
+    }
+    return metadata
+}
+
 private struct Prompt: Identifiable {
     let id = UUID()
     let text: String
@@ -54,7 +92,7 @@ private final class Monitor: ObservableObject {
     @Published var prompt: Prompt?
     private var commands: FileHandle?
     private var stopped = false
-    private var report = false
+    private(set) var report: URL?
     private var analysisWarning = false
 
     func start(_ request: [String: Any], key: String) {
@@ -76,7 +114,7 @@ private final class Monitor: ObservableObject {
         commands = input.fileHandleForWriting
         running = true
         stopped = false
-        report = false
+        report = nil
         analysisWarning = false
         status = text("正在打开 Safari…", "Opening Safari…")
         log = ""
@@ -112,7 +150,9 @@ private final class Monitor: ObservableObject {
             return
         }
         if line.hasPrefix("UI_ANALYSIS_WARNING ") { analysisWarning = true }
-        if line.hasPrefix("已生成 Excel：") || line.hasPrefix("Excel report: ") { report = true }
+        if let prefix = ["已生成 Excel：", "Excel report: "].first(where: { line.hasPrefix($0) }) {
+            report = URL(fileURLWithPath: String(line.dropFirst(prefix.count)))
+        }
         let message = line.replacingOccurrences(of: "^UI_(?:PROGRESS|ANALYSIS_WARNING) ", with: "", options: .regularExpression)
         log += message + "\n"
         if log.count > 50000 { log = String(log.suffix(40000)) }
@@ -125,14 +165,14 @@ private final class Monitor: ObservableObject {
         try? commands?.close()
         commands = nil
         if stopped { status = text("任务已停止", "Task stopped") }
-        else if !report { status = text("运行失败，请查看任务日志", "Run failed. See Task details.") }
+        else if report == nil { status = text("运行失败，请查看任务日志", "Run failed. See Task details.") }
         else if code != 0 { status = text("部分关键词失败 · 已导出报告", "Some keywords failed. Report exported.") }
         else {
             status = analysisWarning
                 ? text("报告已导出 · AI 分析未完整", "Report exported. AI analysis incomplete.")
                 : text("报告已生成", "Report exported")
         }
-        NSApp.dockTile.badgeLabel = stopped ? nil : (report && code == 0 && !analysisWarning ? "✓" : "!")
+        NSApp.dockTile.badgeLabel = stopped ? nil : (report != nil && code == 0 && !analysisWarning ? "✓" : "!")
     }
 
     func answer(_ value: String) {
@@ -208,6 +248,9 @@ private struct MonitorView: View {
     @State private var key = ""
     @State private var endpoint = ""
     @State private var template = ""
+    @State private var previousReport: URL?
+    @State private var lastReport = latestReport(in: reportHome)
+    @State private var importingReport = false
     @State private var settingsOpen = false
     @State private var logOpen = false
     @FocusState private var keywordFocused: Bool
@@ -255,6 +298,12 @@ private struct MonitorView: View {
         .sheet(item: $monitor.prompt) { prompt in
             browserPrompt(prompt)
         }
+        .onChange(of: monitor.running) { running in
+            if !running, let report = monitor.report {
+                lastReport = report
+                if previousReport != nil { previousReport = report }
+            }
+        }
     }
 
     private var sidebar: some View {
@@ -269,9 +318,16 @@ private struct MonitorView: View {
             Text(text("小红书舆情监控", "Xiaohongshu Monitor"))
                 .font(.system(size: 16, weight: .medium))
                 .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 12)
+            Text(text("仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。",
+                "For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach."))
+                .font(.system(size: 11))
+                .foregroundStyle(MistBlue.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 23)
         .padding(.top, 39)
+        .padding(.bottom, 23)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [MistBlue.sidebarTop, MistBlue.sidebarBottom],
             startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -280,13 +336,24 @@ private struct MonitorView: View {
     private var taskForm: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(text("新建监控任务", "New monitoring task"))
+                Text(previousReport == nil ? text("新建监控任务", "New monitoring task") : text("继续监控", "Continue monitoring"))
                     .font(.system(size: 29, weight: .medium))
                     .accessibilityAddTraits(.isHeader)
-                Text(text("按关键词和日期采集笔记，导出 Excel 报告。",
-                    "Collect notes by keyword and date, then export an Excel report."))
+                Text(reportDescription)
                     .font(.system(size: 14))
                     .foregroundStyle(MistBlue.muted)
+                    .lineLimit(1).help(reportDescription)
+                HStack(spacing: 10) {
+                    Button(reportButtonLabel) { importPreviousReport() }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                    if previousReport != nil {
+                        Button(text("新建监控", "New task")) { newTask() }
+                            .buttonStyle(.link)
+                    }
+                }
+                .disabled(importingReport || monitor.running)
+                .padding(.top, 3)
             }
             .padding(.bottom, 9)
             VStack(alignment: .leading, spacing: 8) {
@@ -417,10 +484,10 @@ private struct MonitorView: View {
                     Button(text("停止任务", "Stop task")) { monitor.stop() }
                         .buttonStyle(.bordered).buttonBorderShape(.capsule)
                 } else {
-                    Button(text("开始监控", "Start monitoring")) { startTask() }
+                    Button(previousReport == nil ? text("开始监控", "Start monitoring") : text("开始续查", "Run follow-up")) { startTask() }
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.capsule)
-                        .disabled(keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(importingReport || keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }.controlSize(.large)
         }
@@ -461,6 +528,74 @@ private struct MonitorView: View {
         if dialog.runModal() == .OK, let file = dialog.url { template = file.path }
     }
 
+    private var reportDescription: String {
+        if let file = previousReport { return text("基于报告  ", "Using report  ") + file.lastPathComponent }
+        if let file = lastReport { return text("上次报告  ", "Last report  ") + file.lastPathComponent }
+        return text("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report.")
+    }
+
+    private var reportButtonLabel: String {
+        if importingReport { return text("正在读取…", "Reading…") }
+        if previousReport != nil { return text("更换报告…", "Change report…") }
+        return lastReport == nil ? text("继续监控…", "Continue monitoring…") : text("继续监控", "Continue monitoring")
+    }
+
+    private func newTask() {
+        previousReport = nil
+        keyword = ""
+        start = Date()
+        end = Date()
+        monitor.status = text("准备就绪", "Ready")
+        keywordFocused = true
+    }
+
+    private func importPreviousReport() {
+        let file: URL
+        let automatic: Bool
+        if previousReport == nil, let lastReport, FileManager.default.fileExists(atPath: lastReport.path) {
+            file = lastReport
+            automatic = true
+        } else {
+            let dialog = NSOpenPanel()
+            dialog.title = text("导入上次监控报告", "Import the previous monitoring report")
+            dialog.prompt = text("导入", "Import")
+            dialog.directoryURL = (previousReport ?? lastReport)?.deletingLastPathComponent() ??
+                reportHome.appendingPathComponent("reports", isDirectory: true)
+            dialog.allowsMultipleSelection = false
+            if let workbook = UTType(filenameExtension: "xlsx") { dialog.allowedContentTypes = [workbook] }
+            guard dialog.runModal() == .OK, let selected = dialog.url else { return }
+            file = selected
+            automatic = false
+        }
+        importingReport = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try inspectReport(file) }
+            DispatchQueue.main.async {
+                importingReport = false
+                switch result {
+                case .success(let metadata) where metadata.error == nil:
+                    previousReport = file
+                    let terms = metadata.keywords ?? []
+                    keyword = terms.joined(separator: " ")
+                    let today = Date()
+                    let suggested = metadata.start.flatMap(dateFormatter.date(from:)).flatMap { $0 <= today ? $0 : nil }
+                    start = suggested ?? today
+                    end = today
+                    monitor.status = terms.isEmpty || suggested == nil ?
+                        text("报告已导入，请确认关键词和日期。", "Report imported. Check the keywords and dates.") :
+                        text("报告已导入，可增删关键词。", "Report imported. Add or remove keywords.")
+                    keywordFocused = true
+                case .success(let metadata):
+                    if automatic { lastReport = nil }
+                    monitor.status = metadata.error ?? text("导入失败", "Import failed")
+                case .failure(let error):
+                    if automatic { lastReport = nil }
+                    monitor.status = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func openReports() {
         let folder = reportHome.appendingPathComponent("reports", isDirectory: true)
         do {
@@ -470,12 +605,17 @@ private struct MonitorView: View {
         } catch { monitor.status = error.localizedDescription }
     }
 
-    private func startTask() {
+    private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.timeZone = zone
         formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private func startTask() {
+        let formatter = dateFormatter
         let first = formatter.string(from: start), last = formatter.string(from: end)
         guard first <= last else {
             monitor.status = text("结束日期不能早于开始日期", "End date must be on or after the start date.")
@@ -492,7 +632,8 @@ private struct MonitorView: View {
             return
         }
         monitor.start(["keyword": keyword, "start": first, "end": last, "sort": sort, "screens": count,
-            "template": template, "provider": provider, "model": model, "endpoint": endpoint], key: key)
+            "template": template, "provider": provider, "model": model, "endpoint": endpoint,
+            "continueReport": previousReport?.path ?? ""], key: key)
         key = ""
         logOpen = true
     }
@@ -513,7 +654,8 @@ struct XiaohongshuMonitor: App {
             exit(0)
         }
         if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--verify" {
-            let task = worker(home: URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true), language: .chinese)
+            let home = URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true)
+            let task = worker(home: home, language: .chinese)
             let input = Pipe()
             task.standardInput = input
             do {
@@ -525,7 +667,10 @@ struct XiaohongshuMonitor: App {
                 try input.fileHandleForWriting.write(contentsOf: data + Data([10]))
                 try input.fileHandleForWriting.close()
                 task.waitUntilExit()
-                exit(task.terminationStatus)
+                guard task.terminationStatus == 0, let report = latestReport(in: home) else { exit(1) }
+                let metadata = try inspectReport(report)
+                guard metadata.keywords == ["宝山", "硚口"], metadata.start == "2026-11-23" else { exit(1) }
+                exit(0)
             } catch {
                 FileHandle.standardError.write(Data(error.localizedDescription.utf8))
                 exit(1)

@@ -11,6 +11,7 @@ export async function verifySafariFixture(open, mode) {
   const current = '0123456789abcdef01234567';
   const previous = '0123456789abcdef01234568';
   const opened = [];
+  const detailsOpened = [];
   let signedIn = false;
   let asks = 0;
   const server = createServer((request, response) => {
@@ -48,8 +49,14 @@ export async function verifySafariFixture(open, mode) {
       opened.push(id);
       response.writeHead(302, { Location: `/explore/${id}?mark=final` }).end();
     } else {
+      detailsOpened.push(address.pathname.split('/').pop());
       response.end(`<!doctype html><section class="note-content"><h1 id="detail-title">当天笔记</h1>
-        <p id="detail-desc">Safari 自动化测试</p><time class="date">${date}</time></section>`);
+        <p id="detail-desc">Safari 自动化测试</p><time class="date">${date}</time></section>
+        <div class="interact-container">
+          <button class="like-wrapper"><span class="count">2</span></button>
+          <button class="collect-wrapper"><span class="count">0</span></button>
+          <button class="chat-wrapper"><span class="count">4</span></button>
+        </div>`);
     }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -57,7 +64,8 @@ export async function verifySafariFixture(open, mode) {
   const range = { start: date, end: date, sort: '最新', screens: 1 };
   const helpers = { parseDisplayedDate, presetsCovering };
   try {
-    const result = await collectSafari(keyword, range, async message => {
+    const tracked = [{ id: previous, url: `${origin}/explore/${previous}` }];
+    const result = await collectSafari(keyword, { ...range, tracked }, async message => {
       assert.match(message, /完成小红书登录|Sign in to Xiaohongshu/);
       asks++;
       if (asks === 2) {
@@ -70,8 +78,11 @@ export async function verifySafariFixture(open, mode) {
     assert.equal(result.pageFilter, '一天内');
     assert.equal(result.candidates, 2);
     assert.deepEqual(opened, [current]);
+    assert.deepEqual(detailsOpened, [current, previous]);
     assert.deepEqual(result.notes.map(note => [note.title, note.date, note.url]),
       [['当天笔记', date, `${origin}/explore/${current}?mark=final`]]);
+    assert.deepEqual(result.notes[0].engagement, { likes: 2, saves: 0, comments: 4 });
+    assert.deepEqual(result.refreshed, [{ ...tracked[0], engagement: { likes: 2, saves: 0, comments: 4 } }]);
     await assert.rejects(collectSafari(rejectedKeyword, range, async message => {
       assert.fail(`Unexpected prompt: ${message}`);
     }, helpers, { origin, open }), /自动筛选失败.*本关键词已跳过|could not apply the filters automatically/);

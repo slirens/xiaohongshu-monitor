@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,7 +37,7 @@ const cases = new Map([
 const old = 'aaaaaaaaaaaaaaaaaaaaaaaa';
 const missingSort = '无可用排序';
 
-function notesPage(keyword, id) {
+function notesPage(keyword, id, empty = false) {
   return `<!doctype html><meta charset="utf-8">
     <button onclick="document.getElementById('filters').hidden = false">筛选</button>
     <section id="filters" hidden>
@@ -45,9 +45,10 @@ function notesPage(keyword, id) {
       <h3>发布时间</h3>
       <button onclick="if (this.parentNode.dataset.sort === 'latest') document.getElementById('notes').hidden = false">一天内</button>
     </section>
-    <div id="notes" hidden>
+    <div id="notes" hidden>${empty ? '<p>暂无相关笔记</p>' : `
       <section class="note-item"><a href="/search_result/${id}?fixture=card">${keyword}新笔记</a><time>${today}</time></section>
       <section class="note-item"><a href="/explore/${old}">${keyword}旧笔记</a><time>${yesterday}</time></section>
+      `}
     </div>`;
 }
 
@@ -57,6 +58,8 @@ async function verify(locale) {
   const opened = [];
   let signedIn = false;
   let searchHomeVisits = 0;
+  let count = 1;
+  let refreshViaHistory = false;
   const context = await chromium.launchPersistentContext(join(temporary, `profile-${locale}`), {
     ...(executablePath ? { executablePath } : { channel: 'chromium' }),
     headless: process.env.XHS_HEADED !== '1',
@@ -88,7 +91,7 @@ async function verify(locale) {
         if (!id) return route.fulfill({ status: 404 });
         searched.push(keyword);
         if (!signedIn) return html('<meta charset="utf-8"><h1>扫码登录</h1><a href="/fixture-confirm-login">模拟完成登录</a>');
-        return html(notesPage(keyword, id));
+        return html(notesPage(keyword, id, refreshViaHistory && keyword === '宝山'));
       }
       for (const [keyword, id] of cases) {
         if (url.pathname === `/search_result/${id}`) {
@@ -98,6 +101,11 @@ async function verify(locale) {
           opened.push(id);
           return html(`<meta charset="utf-8"><div class="note-content">
             <h1 id="detail-title">${keyword}新笔记</h1><p id="detail-desc">示例正文</p><span class="date">${today}</span>
+            <div class="engage-bar">
+              <button class="like-wrapper"><span class="count">${count}</span></button>
+              <button class="collect-wrapper"><span class="count">${count}</span></button>
+              <button class="chat-wrapper"><span class="count">${count}</span></button>
+            </div>
             </div>`);
         }
       }
@@ -123,6 +131,9 @@ async function verify(locale) {
     await dashboard.getByRole('heading', { name: english ? 'New monitoring task' : '新建监控任务' }).waitFor();
     assert.equal(await dashboard.locator('html').getAttribute('lang'), english ? 'en' : 'zh-CN');
     assert.equal(await dashboard.locator('#status').innerText(), english ? 'Ready' : '准备就绪');
+    assert.match(await dashboard.locator('.notice').innerText(), english
+      ? /For lawful, non-commercial use only/
+      : /仅限合法、非商业使用/);
     await dashboard.locator('.sidebar img').evaluate(image => image.decode());
     const terms = dashboard.locator('#terms');
     const collapsedHeight = await terms.evaluate(field => field.offsetHeight);
@@ -159,7 +170,7 @@ async function verify(locale) {
     const download = dashboard.waitForEvent('download', { timeout: 25000 });
     await dashboard.locator('#proceed').click();
     const result = await download;
-    assert.equal(result.suggestedFilename(), `${english ? 'Xiaohongshu' : '舆情'}_${today}_${today}.xlsx`);
+    assert.match(result.suggestedFilename(), new RegExp(`^${english ? 'Xiaohongshu' : '舆情'}_${today.slice(2).replaceAll('-', '')}_[a-f0-9]{6}\\.xlsx$`));
     await dashboard.locator('#stop').waitFor({ state: 'hidden' });
     assert(monitored.isClosed(), 'owned browser tab closed after collection');
     assert.equal(await dashboard.locator('#status').innerText(), english ? 'Excel ready' : '已生成 Excel');
@@ -173,7 +184,9 @@ async function verify(locale) {
 
     const workbook = new Workbook();
     await workbook.xlsx.readFile(await result.path());
-    assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['总结', '总表', today, ...cases.keys()]);
+    const visibleSheets = book => book.worksheets.filter(sheet => sheet.state === 'visible').map(sheet => sheet.name);
+    assert.deepEqual(visibleSheets(workbook), ['总结', '总表', today, ...cases.keys()]);
+    assert.equal(workbook.getWorksheet('_xhs_continuation').state, 'veryHidden');
     for (const [keyword, id] of cases) {
       const sheet = workbook.getWorksheet(keyword);
       assert.equal(sheet.actualRowCount, 2);
@@ -185,6 +198,43 @@ async function verify(locale) {
       console.log('Verified English dashboard, template validation, collection prompts and Excel download.');
       return;
     }
+
+    await dashboard.locator('#continue-job').click();
+    await dashboard.locator('#report-source').filter({ hasText: result.suggestedFilename() }).waitFor();
+    assert.equal(await terms.inputValue(), [...cases.keys()].join(' '));
+    await dashboard.locator('#import-report').setInputFiles({
+      name: 'baseline.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: await readFile(await result.path()),
+    });
+    await dashboard.locator('#report-source').filter({ hasText: 'baseline.xlsx' }).waitFor();
+    count = 2;
+    refreshViaHistory = true;
+    const updateDownload = dashboard.waitForEvent('download', { timeout: 25000 });
+    await dashboard.locator('#start-job').click();
+    const updateResult = await updateDownload.catch(async error => {
+      throw new Error(await dashboard.locator('#status').innerText() + '\n' + await dashboard.locator('#history').innerText(), { cause: error });
+    });
+    await dashboard.locator('#stop').waitFor({ state: 'hidden' });
+    const updateBook = new Workbook();
+    await updateBook.xlsx.readFile(await updateResult.path());
+    for (const name of ['总表', today]) {
+      const sheet = updateBook.getWorksheet(name);
+      const row = Object.fromEntries(sheet.getRow(1).values.slice(1).map((value, index) => [value, sheet.getCell(2, index + 1)]));
+      for (const metric of ['点赞', '收藏', '评论']) {
+        assert.equal(row[`${metric}上次`]?.value, 1);
+        assert.equal(row[`${metric}本次`]?.value, 2);
+        assert.equal(row[`${metric}增减`]?.value, 1);
+        assert.equal(row[`${metric}涨幅`]?.value, 1);
+        assert.match(row[`${metric}涨幅`]?.numFmt, /%/);
+      }
+    }
+    const summaryRows = updateBook.getWorksheet('总结').getSheetValues().flat().join('\n');
+    assert.match(summaryRows, /舆情更新/);
+    assert.match(summaryRows, /首次基线/);
+    assert.match(summaryRows, /2 → 4 · \+2 · 涨幅 \+100\.0%/);
+    assert.equal(opened.filter(id => id === cases.get('宝山')).length, 2, 'history notes refresh even when absent in search');
+    refreshViaHistory = false;
+    await dashboard.locator('#clear-report').click();
 
     const schema = {
       version: 1,
@@ -205,7 +255,7 @@ async function verify(locale) {
     await dashboard.locator('#stop').waitFor({ state: 'hidden' });
     const customWorkbook = new Workbook();
     await customWorkbook.xlsx.readFile(await customResult.path());
-    assert.deepEqual(customWorkbook.worksheets.map(sheet => sheet.name), ['核对明细', '风险总结', ...cases.keys()]);
+    assert.deepEqual(visibleSheets(customWorkbook), ['核对明细', '风险总结', ...cases.keys()]);
     const customDetail = customWorkbook.getWorksheet('核对明细');
     assert.deepEqual(customDetail.getRow(1).values.slice(1), ['原文地址', '标题', '风险要点', '分析状态']);
     assert.equal(customDetail.getCell('A2').hyperlink, `${origin}/explore/${cases.get('宝山')}?fixture=final&xsec_source=pc_search`);

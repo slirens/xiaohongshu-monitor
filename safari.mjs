@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+import { normalizeEngagement, readEngagementLabels } from './engagement.mjs';
 const ui = (zh, en) => process.env.XHS_UI_LANG === 'en' ? en : zh;
 
 const appleScript = promisify(execFile);
@@ -86,7 +87,7 @@ export async function openSafari(url, signal, mode = 'foreground') {
 }
 
 // Evaluated only in the dedicated monitoring window, on the active site's origin.
-export function pageRead(kind, value, allowedOrigins) {
+export function pageRead(kind, value, allowedOrigins, readCounts) {
   if (!allowedOrigins.includes(location.origin)) return JSON.stringify(null);
   const visible = element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
   const caption = element => (element.innerText ?? element.textContent ?? '').trim();
@@ -182,7 +183,8 @@ export function pageRead(kind, value, allowedOrigins) {
     const title = caption(document.querySelector('#detail-title') ?? document.createElement('span'));
     const body = caption(document.querySelector('#detail-desc') ?? document.createElement('span'));
     const date = document.querySelector('.note-content .date, .note-scroller .bottom-container .date');
-    return JSON.stringify({ title, body, dateLabel: date ? caption(date) : '', url: location.href });
+    return JSON.stringify({ title, body, dateLabel: date ? caption(date) : '', url: location.href,
+      engagement: readCounts?.(document) });
   }
   return JSON.stringify(null);
 }
@@ -220,7 +222,7 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
   console.log(ui('正在打开 Safari 监控窗口…', 'Opening the Safari monitoring window…'));
   const browser = await (test.open ?? openSafari)(searchURL.href, signal, presentation?.mode);
   const read = (kind, value = null) => browser.evaluate(
-    `(${pageRead.toString()})(${JSON.stringify(kind)},${JSON.stringify(value)},${JSON.stringify(origins)})`,
+    `(${pageRead.toString()})(${JSON.stringify(kind)},${JSON.stringify(value)},${JSON.stringify(origins)},${readEngagementLabels.toString()})`,
   );
   const setMode = async mode => {
     try { await browser.mode(mode); }
@@ -384,25 +386,30 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
     const unknownCardDates = all.filter(([, card]) => !card.date).length;
     const matched = all.filter(([, card]) => card.date >= range.start && card.date <= range.end);
     const notes = [];
+    const readNote = async (id, href) => {
+      await browser.navigate(href);
+      const detail = await wait(async () => {
+        const opened = sameNote(await browser.url(), origins);
+        if (opened?.id !== id) return null;
+        const value = await read('note');
+        const address = sameNote(value?.url, origins);
+        return address?.id === id && (value.title || value.body) ? value : null;
+      });
+      if (!detail) throw new Error(ui('未打开目标笔记', 'The note could not be opened.'));
+      return detail;
+    };
     let unreadable = 0;
     for (const [id, card] of matched) {
       signal?.throwIfAborted();
       try {
-        await browser.navigate(card.href);
-        const detail = await wait(async () => {
-          const opened = sameNote(await browser.url(), origins);
-          if (opened?.id !== id) return null;
-          const value = await read('note');
-          const address = sameNote(value?.url, origins);
-          return address?.id === id && (value.title || value.body) ? value : null;
-        });
-        if (!detail) throw new Error(ui('未打开目标笔记', 'The note could not be opened.'));
+        const detail = await readNote(id, card.href);
         const direct = await wait(async () => {
           const opened = sameNote(await browser.url(), origins);
           return opened?.id === id && opened.url.pathname.startsWith('/explore/') ? opened.url.href : '';
         }, 3000);
         notes.push({ id, title: detail.title, body: detail.body, dateLabel: detail.dateLabel,
-          date: helpers.parseDisplayedDate(detail.dateLabel), url: direct || '' });
+          date: helpers.parseDisplayedDate(detail.dateLabel), url: direct || '',
+          engagement: normalizeEngagement(detail.engagement) });
       } catch (error) {
         signal?.throwIfAborted();
         unreadable++;
@@ -410,7 +417,23 @@ export async function collectSafari(keyword, range, ask, helpers, test = {}) {
       }
       console.log(ui(`读笔记 ${notes.length + unreadable}/${matched.length}`, `Reading notes ${notes.length + unreadable}/${matched.length}`));
     }
-    return { notes, unreadable, candidates: cards.size, pageFilter, unknownCardDates,
+    const seen = new Set(notes.filter(note => Object.values(note.engagement).some(value => value !== null)).map(note => note.id));
+    const targets = (range.tracked ?? []).filter(note => !seen.has(note.id) && sameNote(note.url, origins)?.id === note.id);
+    const refreshed = [];
+    for (const [index, note] of targets.entries()) {
+      signal?.throwIfAborted();
+      console.log(ui(`更新历史笔记互动 ${index + 1}/${targets.length}`, `Refreshing previous notes ${index + 1}/${targets.length}`));
+      try {
+        const detail = await readNote(note.id, note.url);
+        const engagement = normalizeEngagement(detail.engagement);
+        if (Object.values(engagement).some(value => value !== null)) refreshed.push({ ...note, engagement });
+      } catch (error) {
+        signal?.throwIfAborted();
+        observe('history_note_refresh_failed', { reason: error?.name === 'TimeoutError' ? 'timeout' : 'unavailable' });
+      }
+    }
+    observe('history_refresh_finished', { attempted: targets.length, refreshed: refreshed.length });
+    return { notes, refreshed, unreadable, candidates: cards.size, pageFilter, unknownCardDates,
       outsideRange: all.length - unknownCardDates - matched.length, opened: matched.length };
   } finally {
     if (presentation) presentation.apply = null;

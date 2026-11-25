@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 output=${1:-"$repo/dist/linux"}
-version=${2:-1.0.1}
+version=${2:-1.0.8}
 app_id=xiaohongshu-monitor
 
 [[ $(uname -s) == Linux && $(dpkg --print-architecture) == amd64 ]] ||
@@ -24,7 +24,8 @@ trap 'rm -rf -- "$stage"' EXIT
 payload=$stage/package
 app=$payload/opt/$app_id
 install -d "$app/runtime" "$payload/DEBIAN"
-install -m 0644 "$repo/monitor.mjs" "$repo/report-template.mjs" "$repo/linux/app.py" "$repo/cover.png" \
+install -m 0644 "$repo/monitor.mjs" "$repo/report-template.mjs" "$repo/continuation.mjs" "$repo/engagement.mjs" \
+  "$repo/linux/app.py" "$repo/cover.png" \
   "$repo/package.json" "$repo/package-lock.json" "$repo/报告生成模板.md" "$app/"
 install -m 0755 "$node_binary" "$app/runtime/node"
 "$(dirname "$node_binary")/npm" ci --prefix "$app" --omit=dev --ignore-scripts --no-audit --no-fund

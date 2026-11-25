@@ -244,3 +244,16 @@ progress { display: block; width: 100%; height: 8px; accent-color: var(--accent)
 }
 @media (prefers-reduced-motion: reduce) { input, textarea, select { transition: none; } }
 
+.continuation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.continuation-actions p {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}

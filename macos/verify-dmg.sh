@@ -51,9 +51,12 @@ const reports = process.argv[3];
 async function verifyReports() {
   const files = fs.readdirSync(reports);
   assert.equal(files.length, 1);
+  assert.match(files[0], /^舆情_\d{6}_[a-f0-9]+\.xlsx$/);
   const workbook = new Workbook();
   await workbook.xlsx.readFile(path.join(reports, files[0]));
-  assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ["总结", "总表", "2026-11-23", "宝山", "硚口"]);
+  assert.deepEqual(workbook.worksheets.filter(sheet => sheet.state === "visible").map(sheet => sheet.name),
+    ["总结", "总表", "2026-11-23", "宝山", "硚口"]);
+  assert.equal(workbook.getWorksheet("_xhs_continuation").state, "veryHidden");
   for (const keyword of ["宝山", "硚口"]) {
     const sheet = workbook.getWorksheet(keyword);
     assert.equal(sheet.getCell("B2").value, "测试笔记");

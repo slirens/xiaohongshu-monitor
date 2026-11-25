@@ -199,7 +199,8 @@ async function verify(installation) {
     const { Workbook } = createRequire(join(app, 'monitor.mjs'))('exceljs');
     const workbook = new Workbook();
     await workbook.xlsx.readFile(join(reportDirectory, file));
-    assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['总结', '总表', start, ...keywords]);
+    assert.deepEqual(workbook.worksheets.filter(sheet => sheet.state === 'visible').map(sheet => sheet.name), ['总结', '总表', start, ...keywords]);
+    assert.equal(workbook.getWorksheet('_xhs_continuation').state, 'veryHidden');
     for (const keyword of hashtags) {
       const sheet = workbook.getWorksheet(keyword);
       assert.equal(sheet.actualRowCount, 2);

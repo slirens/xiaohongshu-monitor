@@ -37,8 +37,9 @@ if (!$NpmCli) {
 if ($NpmCli) { & $nodePath $NpmCli @npmArgs } else { & npm.cmd @npmArgs }
 if ($LASTEXITCODE -ne 0) { throw "npm ci failed: $LASTEXITCODE" }
 Copy-Item -LiteralPath $nodePath -Destination (Join-Path $runtime "node.exe") -Force
-Copy-Item -LiteralPath (Join-Path $source "report-template.mjs") -Destination $runtime -Force
-Copy-Item -LiteralPath (Join-Path $source "monitor.mjs") -Destination $runtime -Force
+foreach ($module in @("monitor.mjs", "report-template.mjs", "continuation.mjs", "engagement.mjs")) {
+    Copy-Item -LiteralPath (Join-Path $source $module) -Destination $runtime -Force
+}
 $nodeLicense = Join-Path $nodeDirectory "LICENSE"
 if (Test-Path -LiteralPath $nodeLicense) {
     Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $runtime "Node-LICENSE.txt") -Force

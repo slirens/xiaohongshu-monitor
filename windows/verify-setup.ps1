@@ -50,6 +50,7 @@ $worker = Join-Path $appFolder 'runtime/monitor.mjs'
 if ($LASTEXITCODE -ne 0) { throw 'Installed worker prewarm verification failed.' }
 $report = Get-ChildItem -LiteralPath (Join-Path $appFolder 'reports') -Filter '*.xlsx'
 if (@($report).Count -ne 1) { throw 'Expected one combined Excel report.' }
+if ($report.Name -notmatch '^舆情_\d{6}_[a-f0-9]+\.xlsx$') { throw 'Unexpected report filename.' }
 $env:XHS_VERIFY_WORKBOOK = $report.FullName
 $env:XHS_VERIFY_EXCELJS = Join-Path $appFolder 'runtime/node_modules/exceljs'
 $check = @'
@@ -59,7 +60,9 @@ const { Workbook } = require(process.env.XHS_VERIFY_EXCELJS);
     const workbook = new Workbook();
     await workbook.xlsx.readFile(process.env.XHS_VERIFY_WORKBOOK);
     const keywords = ['之禾', '咖啡'];
-    assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['总结', '总表', '2026-11-21', ...keywords]);
+    assert.deepEqual(workbook.worksheets.filter(sheet => sheet.state === 'visible').map(sheet => sheet.name),
+        ['总结', '总表', '2026-11-21', ...keywords]);
+    assert.equal(workbook.getWorksheet('_xhs_continuation').state, 'veryHidden');
     for (const keyword of keywords) {
         assert.equal(workbook.getWorksheet(keyword).getCell('B2').value, '之禾 咖啡');
         assert.equal(workbook.getWorksheet(keyword).getCell('D2').hyperlink,

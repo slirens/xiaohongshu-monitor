@@ -1,10 +1,10 @@
-name: Build and verify v1.0.7 packages
+name: Build and verify v1.0.8 packages
 
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish v1.0.7 after all packages pass verification
+        description: Publish v1.0.8 after all packages pass verification
         type: boolean
         default: false
 
@@ -16,29 +16,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  reports:
+    name: Verify continued monitoring and Excel updates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+      - run: node --test tests/report-template.test.mjs tests/continuation.test.mjs tests/continued-report.test.mjs
+
   windows:
     uses: ./.github/workflows/windows-setup.yml
     with:
-      version: '1.0.7'
+      version: '1.0.8'
 
   macos:
     uses: ./.github/workflows/macos-dmg.yml
     with:
-      version: '1.0.7'
+      version: '1.0.8'
 
   linux:
     uses: ./.github/workflows/linux.yml
     with:
-      version: '1.0.7'
+      version: '1.0.8'
 
   harmonyos:
     uses: ./.github/workflows/harmonyos.yml
     with:
-      version: '1.0.7'
+      version: '1.0.8'
 
   publish:
     if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
-    needs: [windows, macos, linux, harmonyos]
+    needs: [reports, windows, macos, linux, harmonyos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -62,22 +74,24 @@ jobs:
         with:
           name: harmonyos-browser
           path: packages
-      - name: Publish all six verified packages
+      - name: Publish verified packages and the built-in analysis template
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           cd packages
+          cp ../报告生成模板.md analysis-template.md
           packages=(
-            xiaohongshu-monitor-v1.0.7-windows-x64-setup.exe
-            xiaohongshu-monitor-v1.0.7-windows-x86-setup.exe
-            xiaohongshu-monitor-v1.0.7-macos-arm64.dmg
-            xiaohongshu-monitor-v1.0.7-macos-x86_64.dmg
-            xiaohongshu-monitor-v1.0.7-linux-amd64.deb
-            xiaohongshu-monitor-v1.0.7-harmonyos-browser.zip
+            xiaohongshu-monitor-v1.0.8-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.0.8-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.0.8-macos-arm64.dmg
+            xiaohongshu-monitor-v1.0.8-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.0.8-linux-amd64.deb
+            xiaohongshu-monitor-v1.0.8-harmonyos-browser.zip
+            analysis-template.md
           )
           sha256sum "${packages[@]}" > SHA256SUMS.txt
-          gh release create v1.0.7 "${packages[@]}" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title 'v1.0.7' \
+          gh release create v1.0.8 "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.0.8' \
             --notes-file ../RELEASE.md --latest
