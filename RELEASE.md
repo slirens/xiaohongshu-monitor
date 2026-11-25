@@ -7,14 +7,13 @@
 
 ## 下载 · Download
 
-[下载内置舆情分析模板 Markdown · Download the built-in Markdown analysis template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md)
-
-| 系统 · Platform | 安装包 · Package |
+| 类别 · Category | 下载项 · Download |
 | --- | --- |
 | Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x86-setup.exe) |
 | macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-x86_64.dmg) |
 | Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-linux-amd64.deb) |
 | 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-harmonyos-browser.zip) |
+| 舆情分析模板 · Analysis template | [Markdown](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) |
 
 ### 安装说明
 

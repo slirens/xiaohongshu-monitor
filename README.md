@@ -25,6 +25,27 @@ Windows 版要求 Windows 10 或更新版本，支持 Microsoft Edge、Google Ch
 
 Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名，未经过 Apple 公证。首次打开时，系统可能提示安全确认。
 
+## 内置舆情分析框架
+
+[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [查看模板源码](报告生成模板.md)
+
+| 层级 | 内置分析框架 |
+| --- | --- |
+| 逐帖研判 | 结合标题和正文判断相关性、情绪与主题，写一句摘要。区分体验自述、观点和待核实信息。 |
+| 总结 | 说明范围和样本量，归纳主要议题、风险和待核实事项。继续监控时，按执行日期保留新发现和互动变化。 |
+| 总表及分表 | 总表按帖子去重；日期分表按发布日期拆分；多关键词可以分别查看。笔记明细包含原文地址及点赞、收藏、评论的上次值、本次值、增减和涨幅。 |
+
+### 如何修改并导入
+
+1. 下载模板并另存为一个 `.md` 文件。先修改「分析规则」和「总结」下的文字。例如新增「在总结中单列售后投诉，引用原文地址并注明处理进展」。只想调整分析重点时，保留下面的 JSON 即可。
+2. 要改 AI 输出字段，编辑 `report-schema` 里的 `analysisFields` 和 `summarySections`。前者定义逐帖字段，后者定义总结栏目。常用修改是调整 `title` 和 `instruction`，并保留 `key`。逐帖字段支持 `text`、`boolean`、`enum`，枚举值在 `values` 中列出。
+3. 要改 Excel 列布局，在 `sheets` 中调整相应 `columns` 的顺序。工作表类型为 `summary`、`overview`、`date`、`keyword`。例如把 `comments_delta` 和 `comments_rate` 移到 `title` 后面，可在标题旁显示评论增减和涨幅。新增逐帖字段时，将它的 `key` 加到相应工作表的 `columns` 中。
+4. 以 UTF-8 保存 Markdown，保留 `report-schema` 代码块、`"version": 1` 和合法 JSON。在程序的「更多设置 → 报告生成模板」导入并选中它，填入所用 AI 服务的 API 密钥即可按模板分析。
+
+互动变化由程序用实际采集值计算。互动明细使用 `likes`、`saves`、`comments` 保存本次值，分别加后缀 `_previous`、`_delta`、`_rate` 可引用上次值、增减和涨幅。关闭 AI 后仍可导出互动统计及模板布局。有「总结」「总表」「日期」三个标题的旧模板可继续使用默认布局。
+
+桌面版将报告写入本机 `reports`。浏览器扩展直接下载 Excel 文件。
+
 ## 构建与运行
 
 ### Linux
@@ -65,27 +86,6 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 ## 日期范围和划屏
 
 选择「最新」和「下拉到底」时，发现一条发布日期早于开始日期的笔记后，程序完成当前屏的扫描并结束该关键词的划屏。开始日期当天仍纳入。开始日期超出「半年内」的覆盖范围时，这个组合使用网页发布时间的「不限」档位。
-
-## 内置舆情分析框架
-
-[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [查看模板源码](报告生成模板.md)
-
-| 层级 | 内置分析框架 |
-| --- | --- |
-| 逐帖研判 | 结合标题和正文判断相关性、情绪与主题，写一句摘要。区分体验自述、观点和待核实信息。 |
-| 总结 | 说明范围和样本量，归纳主要议题、风险和待核实事项。继续监控时，按执行日期保留新发现和互动变化。 |
-| 总表及分表 | 总表按帖子去重；日期分表按发布日期拆分；多关键词可以分别查看。笔记明细包含原文地址及点赞、收藏、评论的上次值、本次值、增减和涨幅。 |
-
-### 如何修改并导入
-
-1. 下载模板并另存为一个 `.md` 文件。先修改「分析规则」和「总结」下的文字。例如新增「在总结中单列售后投诉，引用原文地址并注明处理进展」。只想调整分析重点时，保留下面的 JSON 即可。
-2. 要改 AI 输出字段，编辑 `report-schema` 里的 `analysisFields` 和 `summarySections`。前者定义逐帖字段，后者定义总结栏目。常用修改是调整 `title` 和 `instruction`，并保留 `key`。逐帖字段支持 `text`、`boolean`、`enum`，枚举值在 `values` 中列出。
-3. 要改 Excel 列布局，在 `sheets` 中调整相应 `columns` 的顺序。工作表类型为 `summary`、`overview`、`date`、`keyword`。例如把 `comments_delta` 和 `comments_rate` 移到 `title` 后面，可在标题旁显示评论增减和涨幅。新增逐帖字段时，将它的 `key` 加到相应工作表的 `columns` 中。
-4. 以 UTF-8 保存 Markdown，保留 `report-schema` 代码块、`"version": 1` 和合法 JSON。在程序的「更多设置 → 报告生成模板」导入并选中它，填入所用 AI 服务的 API 密钥即可按模板分析。
-
-互动变化由程序用实际采集值计算。互动明细使用 `likes`、`saves`、`comments` 保存本次值，分别加后缀 `_previous`、`_delta`、`_rate` 可引用上次值、增减和涨幅。关闭 AI 后仍可导出互动统计及模板布局。有「总结」「总表」「日期」三个标题的旧模板可继续使用默认布局。
-
-桌面版将报告写入本机 `reports`。浏览器扩展直接下载 Excel 文件。
 
 ## 发布前检查
 

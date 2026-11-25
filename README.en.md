@@ -19,6 +19,27 @@ The pale-blue interface follows the system display language. It uses Simplified 
 
 The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
 
+## Built-in analysis framework
+
+[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [View source](报告生成模板.md)
+
+| Level | Built-in framework |
+| --- | --- |
+| Individual notes | Use the title and body to assess relevance, sentiment and topic, then write a one-sentence summary. Distinguish firsthand accounts, opinions and claims that need verification. |
+| Summary | Describe the scope and sample size, then summarize themes, risks and open questions. Continued runs append discoveries and changes by run date. |
+| Overview and detail | Deduplicate the overview by note, group date sheets by publication date and view each keyword separately. Details contain the note URL and previous counts, current counts, absolute changes and percentage changes for likes, saves and comments. |
+
+### How to customize and import the template
+
+1. Download the template and save a copy as a `.md` file. Start with the text under `分析规则` (Analysis rules) and `总结` (Summary). For example, ask for a separate section on after-sales complaints with source links and current status. The JSON can stay as it is when you only want to change the focus of the analysis.
+2. To change AI output, edit `analysisFields` for note-level fields and `summarySections` for summary sections in the `report-schema` JSON. Edit `title` and `instruction` and keep the corresponding `key`. Note fields support `text`, `boolean` and `enum`. List enum choices in `values`.
+3. To change workbook columns, reorder the relevant `columns` in `sheets`. Available worksheet kinds are `summary`, `overview`, `date` and `keyword`. For example, move `comments_delta` and `comments_rate` after `title` to display comment changes beside titles. Add a new analysis field to a sheet by placing its `key` in that sheet's `columns`.
+4. Save the Markdown in UTF-8. Keep a valid JSON object with `"version": 1` inside the `report-schema` block. Import and select the file under **More settings → Report template**, and enter your AI service's API key to run template-guided analysis.
+
+The app calculates engagement changes from observed counts. The `likes`, `saves` and `comments` columns hold the current values. Each supports `_previous`, `_delta` and `_rate` suffixes for previous values, absolute changes and percentage changes. The app exports engagement figures and follows the workbook layout with AI disabled. Older templates with the `总结`, `总表` and `日期` headings use the default layout.
+
+Desktop reports are written to the local `reports` folder. The browser extension downloads the workbook directly.
+
 ## Permitted use and platform restrictions
 
 **For lawful, noncommercial use only.** The source code is available for noncommercial purposes such as learning, research, and testing. Use for unlawful activities or commercial gain is prohibited. Before using the app, ensure you are authorized to access and process the content and comply with applicable laws and Xiaohongshu's rules.
@@ -65,27 +86,6 @@ The summary retains each update by run date. The overview and publication-date s
 ## Date range and scrolling
 
 With Latest sorting and Scroll to bottom selected, the app finishes scanning the current screen and stops scrolling that keyword once it sees a note published before the start date. Notes on the start date remain eligible. If the start date is outside the six-month preset, this combination uses the site's unrestricted publication-date option.
-
-## Built-in analysis framework
-
-[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [View source](报告生成模板.md)
-
-| Level | Built-in framework |
-| --- | --- |
-| Individual notes | Use the title and body to assess relevance, sentiment and topic, then write a one-sentence summary. Distinguish firsthand accounts, opinions and claims that need verification. |
-| Summary | Describe the scope and sample size, then summarize themes, risks and open questions. Continued runs append discoveries and changes by run date. |
-| Overview and detail | Deduplicate the overview by note, group date sheets by publication date and view each keyword separately. Details contain the note URL and previous counts, current counts, absolute changes and percentage changes for likes, saves and comments. |
-
-### How to customize and import the template
-
-1. Download the template and save a copy as a `.md` file. Start with the text under `分析规则` (Analysis rules) and `总结` (Summary). For example, ask for a separate section on after-sales complaints with source links and current status. The JSON can stay as it is when you only want to change the focus of the analysis.
-2. To change AI output, edit `analysisFields` for note-level fields and `summarySections` for summary sections in the `report-schema` JSON. Edit `title` and `instruction` and keep the corresponding `key`. Note fields support `text`, `boolean` and `enum`. List enum choices in `values`.
-3. To change workbook columns, reorder the relevant `columns` in `sheets`. Available worksheet kinds are `summary`, `overview`, `date` and `keyword`. For example, move `comments_delta` and `comments_rate` after `title` to display comment changes beside titles. Add a new analysis field to a sheet by placing its `key` in that sheet's `columns`.
-4. Save the Markdown in UTF-8. Keep a valid JSON object with `"version": 1` inside the `report-schema` block. Import and select the file under **More settings → Report template**, and enter your AI service's API key to run template-guided analysis.
-
-The app calculates engagement changes from observed counts. The `likes`, `saves` and `comments` columns hold the current values. Each supports `_previous`, `_delta` and `_rate` suffixes for previous values, absolute changes and percentage changes. The app exports engagement figures and follows the workbook layout with AI disabled. Older templates with the `总结`, `总表` and `日期` headings use the default layout.
-
-Desktop reports are written to the local `reports` folder. The browser extension downloads the workbook directly.
 
 ## License
 
