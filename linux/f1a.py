@@ -290,7 +290,7 @@ class MonitorView:
                             self.open_reports, kind="Link.TButton", icon="folder")
 
     def _section(self, panel, name, margin=12):
-        ttk.Label(panel, text=name, style="Caption.TLabel").pack(anchor="w", padx=16, pady=(margin, 5))
+        ttk.Label(panel, text=name, style="Caption.TLabel").pack(anchor="w", padx=16, pady=(margin, 4))
         group = Group(panel)
         group.pack(fill="x")
         return group
@@ -378,9 +378,9 @@ class MonitorView:
     def _build_settings(self, panel):
         self.settings_back = self._button(panel, self.ui("返回任务设置", "Back to task setup"),
                                           lambda: self.show_page("setup"), kind="Link.TButton", icon="back")
-        self.settings_back.pack(anchor="w", pady=(11, 2))
+        self.settings_back.pack(anchor="w", pady=(7, 1))
         ttk.Label(panel, text=self.ui("更多设置", "More settings"), style="SubTitle.TLabel").pack(anchor="w")
-        collection = self._section(panel, self.ui("采集", "Collection"), margin=8)
+        collection = self._section(panel, self.ui("采集", "Collection"), margin=5)
         row = self._row(collection, self.ui("网页排序", "Sort order"), height=36)
         self.sort_buttons = {}
         for value in reversed(tuple(self.sort_options)):
@@ -393,7 +393,7 @@ class MonitorView:
         ttk.Label(row, text=self.ui("1–4 屏，或输入正整数", "1–4 screens or type a positive integer"),
                   style="GroupMuted.TLabel").pack(side="right", padx=(0, 8))
 
-        report = self._section(panel, self.ui("报告", "Report"), margin=8)
+        report = self._section(panel, self.ui("报告", "Report"), margin=5)
         row = self._row(report, self.ui("报告生成模板", "Report template"), height=36)
         self.template_picker = ttk.Combobox(row, textvariable=self.template, state="readonly", width=24)
         self.template_picker.pack(side="right")
@@ -404,7 +404,7 @@ class MonitorView:
         ttk.Label(row, text=self.ui(".md · 须含「总结」「总表」「日期」", ".md · requires Summary, Overview, and Date headings"),
                   style="GroupMuted.TLabel").pack(side="right")
 
-        ai = self._section(panel, self.ui("AI 分析（可选）", "AI analysis (optional)"), margin=8)
+        ai = self._section(panel, self.ui("AI 分析（可选）", "AI analysis (optional)"), margin=5)
         row = self._row(ai, self.ui("AI 服务商", "AI provider"), height=36)
         provider = ttk.Combobox(row, textvariable=self.provider, state="readonly", values=self.providers, width=18)
         provider.pack(side="right")
@@ -417,9 +417,10 @@ class MonitorView:
         self.endpoint_entry = ttk.Entry(row, textvariable=self.endpoint, width=26, state="disabled")
         self.endpoint_entry.pack(side="right")
         self.screen_error = ttk.Label(panel, style="Error.TLabel", wraplength=580)
-        self.screen_error.pack(anchor="w", padx=16, pady=(4, 0))
-        ttk.Label(panel, text=self.ui("留空密钥则仅导出笔记明细", "Leave the key blank to export notes without AI analysis."),
-                  style="Caption.TLabel").pack(anchor="w", padx=16, pady=(2, 0))
+        self.ai_hint = ttk.Label(
+            panel, text=self.ui("留空密钥则仅导出笔记明细", "Leave the key blank to export notes without AI analysis."),
+            style="Caption.TLabel")
+        self.ai_hint.pack(anchor="w", padx=16, pady=(6, 0))
         self.sort.trace_add("write", self.update_options_label)
         self.screens.trace_add("write", self.update_options_label)
         self.template.trace_add("write", self.update_options_label)
@@ -522,6 +523,9 @@ class MonitorView:
 
     def _scroll_to_focus(self, event):
         widget = event.widget
+        if widget is self.settings_back:
+            self.viewport.yview_moveto(0)
+            return
         total = self.body.winfo_height()
         visible_height = self.viewport.winfo_height()
         if total <= visible_height or not str(widget).startswith(f"{self.body}."):
@@ -572,10 +576,15 @@ class MonitorView:
         self.details_button.configure(text=self.ui("执行日志", "Activity log"))
         if page == "setup":
             self._update_setup_feedback()
-        elif page == "settings":
-            self.settings_back.focus_set()
         self.viewport.yview_moveto(0)
         self._resize_body()
+        if page == "settings":
+            self.window.after_idle(self._focus_settings)
+
+    def _focus_settings(self):
+        if self.page == "settings":
+            self.viewport.yview_moveto(0)
+            self.settings_back.focus_set()
 
     def open_running_view(self, *, compact=True):
         self._progress_counts = (0, 0, 0)
@@ -761,6 +770,10 @@ class MonitorView:
             field.state(["invalid"] if index == bad_date else ["!invalid"])
         self.screen_picker.state(["invalid"] if screen_error else ["!invalid"])
         self.screen_error.configure(text=f"⊗  {screen_error}" if screen_error else "")
+        if screen_error and not self.screen_error.winfo_manager():
+            self.screen_error.pack(anchor="w", before=self.ai_hint, padx=16, pady=(4, 0))
+        elif not screen_error:
+            self.screen_error.pack_forget()
         disabled = self.worker or self.importing_report or keyword_error or date_error or screen_error
         self.run.state(["disabled"] if disabled else ["!disabled"])
         self._paint_keyword()

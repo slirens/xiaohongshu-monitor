@@ -94,6 +94,9 @@ def check(app, ui, screenshot_folder, report):
             assert app.footer.winfo_height() == 58
             assert app.body.winfo_width() == 600
             assert app.body.winfo_rootx() - viewport.winfo_rootx() == (width - 600) // 2
+        if state == "FA-03":
+            assert app.settings_back.winfo_rooty() >= viewport.winfo_rooty(), "Settings Back must be visible."
+            assert app.ai_hint.winfo_rooty() + app.ai_hint.winfo_height() <= viewport.winfo_rooty() + viewport.winfo_height()
         for widget in list(descendants(window)):
             if not isinstance(widget, ttk.Button) or not widget.winfo_viewable() or widget.winfo_toplevel() != window:
                 continue
