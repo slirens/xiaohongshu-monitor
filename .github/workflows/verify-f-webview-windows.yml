@@ -1,0 +1,48 @@
+name: Verify F WebView on Windows
+
+on:
+  push:
+    branches: ['verify/f-webview']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webview2:
+    name: Windows Tauri NSIS (${{ matrix.arch }})
+    runs-on: windows-2025
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Prepare the shared F frontend and isolated probe
+        shell: pwsh
+        run: |
+          $probe = 'tools/ci-macos-probe'
+          $stage = Join-Path $env:RUNNER_TEMP 'xhs-f-webview-stage'
+          New-Item -ItemType Directory -Path $stage -ErrorAction Stop | Out-Null
+          node "$probe/prepare.mjs" "$probe/frontend" $stage
+          if ($LASTEXITCODE -ne 0) { throw 'Probe preparation failed.' }
+          "XHS_PROBE_STAGE=$stage" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+      - name: Build and install the probe, then run F in WebView2
+        shell: pwsh
+        run: |
+          & 'tools/ci-macos-probe/verify-windows-runner.ps1' -Architecture '${{ matrix.arch }}' -Stage $env:XHS_PROBE_STAGE -Evidence (Join-Path $env:RUNNER_TEMP 'xhs-f-webview-proof')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: f-webview-windows-${{ matrix.arch }}-evidence
+          path: |
+            ${{ runner.temp }}/xhs-f-webview-proof/
+            ${{ runner.temp }}/xhs-f-webview-stage/shared-assets.json
+          if-no-files-found: warn
+          retention-days: 5

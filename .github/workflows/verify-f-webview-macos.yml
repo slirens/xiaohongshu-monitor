@@ -1,0 +1,86 @@
+name: Verify isolated F prototype on macOS
+
+on:
+  push:
+    branches: ['verify/f-webview']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wkwebview-dmg:
+    name: WKWebView DMG / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Prepare the official Rust toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+      - name: Build, mount and start the test DMG
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: bash tools/ci-macos-probe/run-macos.sh tools/ci-macos-probe/frontend "$RUNNER_TEMP/macos-probe-proof" "$EXPECTED_ARCH"
+      - name: Upload WKWebView verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-wkwebview-proof-${{ matrix.arch }}
+          path: ${{ runner.temp }}/macos-probe-proof
+          if-no-files-found: warn
+
+  safari-webdriver:
+    name: Native Safari WebDriver / ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+      - name: Run the existing loopback Safari fixture
+        id: fixture
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/safari-probe-proof"
+          set +e
+          (sudo /usr/bin/safaridriver --enable && node macos/verify-safari.mjs --webdriver) 2>&1 \
+            | tee "$RUNNER_TEMP/safari-probe-proof/safari.log"
+          code=${PIPESTATUS[0]}
+          printf 'exitCode=%s\n' "$code" | tee -a "$RUNNER_TEMP/safari-probe-proof/safari.log"
+          exit "$code"
+      - name: Record the raw Safari fixture result
+        if: always()
+        env:
+          SAFARI_OUTCOME: ${{ steps.fixture.outcome }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/safari-probe-proof"
+          printf 'Safari WebDriver fixture: %s\n' "$SAFARI_OUTCOME" | tee "$RUNNER_TEMP/safari-probe-proof/status.txt" >> "$GITHUB_STEP_SUMMARY"
+          printf 'A failure or skipped step leaves native Safari unverified. This job does not exercise the production Apple Events authorization.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the Safari fixture record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-safari-proof-${{ matrix.runner }}
+          path: ${{ runner.temp }}/safari-probe-proof
+          if-no-files-found: warn
