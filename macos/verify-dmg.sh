@@ -35,6 +35,10 @@ test "$(lipo -archs "$binary")" = "$arch"
 test "$(lipo -archs "$runtime/node")" = "$arch"
 test -f "$app/Contents/Resources/en.lproj/InfoPlist.strings"
 test -f "$app/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
+test "$(plutil -extract CFBundleIconFile raw "$app/Contents/Info.plist")" = XhsMonitor.icns
+test -s "$app/Contents/Resources/XhsMonitor.icns"
+test -s "$app/Contents/Resources/xhs-monitor-logo.png"
+test ! -e "$app/Contents/Resources/cover.png"
 "$binary" --verify-localization
 
 fixture="$stage/notes.json"

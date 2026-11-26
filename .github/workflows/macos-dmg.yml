@@ -37,6 +37,13 @@ jobs:
           bash macos/build-dmg.sh "$RUNNER_TEMP/macos-dist" "$VERSION"
       - name: Mount the DMG and verify the copied app and workbook
         run: bash macos/verify-dmg.sh "$RUNNER_TEMP/macos-dist/xiaohongshu-monitor-v$VERSION-macos-$ARCH.dmg" "$ARCH" "$VERSION"
+      - name: Capture native F+1A interface states
+        run: bash macos/verify-ui.sh "$RUNNER_TEMP/f1a-macos-$ARCH"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-ui-${{ matrix.arch }}
+          path: ${{ runner.temp }}/f1a-macos-${{ matrix.arch }}
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: macos-dmg-${{ matrix.arch }}
