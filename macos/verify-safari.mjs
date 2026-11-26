@@ -17,7 +17,9 @@ export async function verifySafariFixture(open, mode) {
   const server = createServer((request, response) => {
     const address = new URL(request.url, 'http://127.0.0.1');
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (address.pathname === '/signed-in') {
+    if (address.pathname === '/favicon.ico') {
+      response.writeHead(204).end();
+    } else if (address.pathname === '/signed-in') {
       response.end(signedIn ? 'yes' : 'no');
     } else if (address.pathname === '/search_result') {
       const requested = address.searchParams.get('keyword');
@@ -48,7 +50,7 @@ export async function verifySafariFixture(open, mode) {
       const id = address.pathname.split('/').pop();
       opened.push(id);
       response.writeHead(302, { Location: `/explore/${id}?mark=final` }).end();
-    } else {
+    } else if (address.pathname.startsWith('/explore/')) {
       detailsOpened.push(address.pathname.split('/').pop());
       response.end(`<!doctype html><section class="note-content"><h1 id="detail-title">当天笔记</h1>
         <p id="detail-desc">Safari 自动化测试</p><time class="date">${date}</time></section>
@@ -57,6 +59,8 @@ export async function verifySafariFixture(open, mode) {
           <button class="collect-wrapper"><span class="count">0</span></button>
           <button class="chat-wrapper"><span class="count">4</span></button>
         </div>`);
+    } else {
+      response.writeHead(404).end();
     }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
