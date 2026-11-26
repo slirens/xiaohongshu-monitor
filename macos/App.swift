@@ -330,10 +330,10 @@ private struct FAButtonStyle: ButtonStyle {
     var kind: Kind = .secondary
 
     func makeBody(configuration: Configuration) -> some View {
-        Body(kind: kind, configuration: configuration)
+        StyledContent(kind: kind, configuration: configuration)
     }
 
-    private struct Body: View {
+    private struct StyledContent: View {
         let kind: Kind
         let configuration: Configuration
         @State private var hovered = false
