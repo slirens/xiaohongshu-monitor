@@ -79,7 +79,7 @@ internal static class CaptureF1A
         compact.Refresh();
         if (!compact.Visible || Field<Control>(window, "setupView").Visible || compact.Width != compactSize.Width)
             throw new InvalidOperationException("The compact window did not render at the requested size.");
-        CaptureBitmap(window, folder, "FA-10");
+        CaptureBitmap(compact, folder, "FA-10");
         Prompt(window, english, false, folder, "FA-11", compactSize);
         Prompt(window, english, true, folder, "FA-12", compactSize);
         Call(window, "RestoreSetupView");
@@ -92,16 +92,24 @@ internal static class CaptureF1A
         Call(window, "RenderF1AResult", "completed");
         CaptureBitmap(window, folder, "FA-07");
         Call(window, "ResetF1AProgress");
-        Replay(window, english, 200, 200);
+        Replay(window, english, 200, 200, 2);
         Call(window, "RenderF1AResult", "completed");
         CaptureBitmap(window, folder, "FA-07b");
         Field<Button>(window, "f1aExpandResult").PerformClick();
-        if (Field<ListView>(window, "f1aResults").VirtualListSize != 200)
-            throw new InvalidOperationException("The 200-keyword result list did not expand.");
+        if (Field<ListView>(window, "f1aResults").VirtualListSize != 201)
+            throw new InvalidOperationException("The 200-keyword result list did not expand into two groups.");
+        Call(window, "F1AUpdateStickyGroup", 0);
+        if (!Field<Label>(window, "f1aResultGroup").Text.Contains(english ? "Failed" : "失败"))
+            throw new InvalidOperationException("The failed group was not shown first.");
         CaptureBitmap(window, folder, "FA-07c");
         Field<TextBox>(window, "f1aResultFilter").Text = "19";
         if (Field<ListView>(window, "f1aResults").VirtualListSize != 12)
             throw new InvalidOperationException("Keyword filtering used an incorrect result set.");
+        var resizedList = Field<ListView>(window, "f1aResults");
+        var outdatedRow = new RetrieveVirtualItemEventArgs(199);
+        typeof(ListView).GetMethod("OnRetrieveVirtualItem", Instance).Invoke(resizedList, new object[] { outdatedRow });
+        if (outdatedRow.Item.SubItems.Count != resizedList.Columns.Count)
+            throw new InvalidOperationException("A native redraw from the previous virtual size lost a column.");
         Call(window, "ResetF1AProgress");
         Replay(window, english, 3, 3, 2);
         Set(window, "f1aAnalysisWarning", english ? "AI analysis did not finish" : "AI 分析未完整");
@@ -132,7 +140,8 @@ internal static class CaptureF1A
         using (var dialog = (Form)Call(window, "F1ADialog", heading, detail, accept, dismiss, stop)) {
             dialog.Shown += delegate {
                 if (window.ClientSize != expected) window.ClientSize = expected;
-                using (var bitmap = Draw(window)) {
+                Control owner = expected.Width == 440 ? Field<Control>(window, "compactView") : (Control)window;
+                using (var bitmap = Draw(owner)) {
                     using (var child = Draw(dialog))
                     using (var painter = Graphics.FromImage(bitmap))
                     {
@@ -146,7 +155,7 @@ internal static class CaptureF1A
         }
     }
 
-    private static Bitmap Draw(Form window)
+    private static Bitmap Draw(Control window)
     {
         window.Update();
         var bitmap = new Bitmap(window.ClientSize.Width, window.ClientSize.Height);
@@ -169,7 +178,7 @@ internal static class CaptureF1A
         window.ClientSize = size;
     }
 
-    private static void CaptureBitmap(Form window, string folder, string name)
+    private static void CaptureBitmap(Control window, string folder, string name)
     {
         using (var image = Draw(window)) image.Save(Path.Combine(folder, name + ".png"));
     }

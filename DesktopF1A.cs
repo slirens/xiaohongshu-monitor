@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -27,9 +28,11 @@ internal sealed partial class Desktop
     private Label f1aRunMessage, f1aRunSummary, f1aKeywordHint, f1aDateHint, f1aScreenHint;
     private Label f1aReportName, f1aResultTitle, f1aResultMeta;
     private Button f1aAdvanced, f1aOpenResult, f1aExpandResult, f1aResultFollow, f1aResultNew;
-    private ListView f1aRunList, f1aResults;
+    private F1AVirtualList f1aRunList, f1aResults;
     private TextBox f1aResultFilter;
-    private ComboBox f1aStateFilter;
+    private readonly Button[] f1aStateButtons = new Button[3];
+    private Label f1aResultGroup;
+    private int f1aResultSelection;
     private Control f1aResultFilters;
     private List<F1ATerm> f1aRunRows = new List<F1ATerm>(), f1aResultRows = new List<F1ATerm>();
     private F1AProgressBar f1aProgressBar, f1aCompactBar;
@@ -42,6 +45,7 @@ internal sealed partial class Desktop
         internal readonly int Index;
         internal readonly string Name;
         internal string Outcome;
+        internal bool IsGroup { get { return Index == 0; } }
         internal F1ATerm(int index, string name) { Index = index; Name = name; }
     }
 
@@ -390,16 +394,34 @@ internal sealed partial class Desktop
         F1ASpace(f1aResultPage, 14);
         f1aResultFilter = new TextBox { AccessibleName = Ui("筛选关键词", "Filter keywords"), BackColor = FieldFill };
         f1aResultFilter.TextChanged += delegate { RefreshF1AResults(); };
-        f1aStateFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = Ui("关键词状态", "Keyword status") };
-        f1aStateFilter.Items.AddRange(new object[] { Ui("全部", "All"), Ui("失败", "Failed"), Ui("完成", "Completed") });
-        f1aStateFilter.SelectedIndex = 0;
-        f1aStateFilter.SelectedIndexChanged += delegate { RefreshF1AResults(); };
+        var states = F1AActions(FlowDirection.LeftToRight);
+        string[] labels = { Ui("全部", "All"), Ui("失败", "Failed"), Ui("完成", "Completed") };
+        for (int i = 0; i < labels.Length; i++) {
+            int selected = i;
+            var segment = MakeButton(labels[i], false);
+            segment.Width = English ? (i == 2 ? 98 : 70) : 66;
+            segment.Height = 28;
+            segment.Margin = new Padding(2, 0, 0, 0);
+            segment.Click += delegate { f1aResultSelection = selected; RefreshF1AResults(); };
+            f1aStateButtons[i] = segment;
+            states.Controls.Add(segment);
+        }
         var filterWell = new FieldWell(f1aResultFilter) { Padding = new Padding(12, 9, 8, 4) };
         filterWell.SetHint(Caption(Ui("筛选关键词", "Filter keywords"), Tertiary));
-        f1aResultFilters = F1ARow(filterWell, f1aStateFilter, 8);
+        f1aResultFilters = F1ARow(filterWell, states, 8);
         F1AAdd(f1aResultPage, f1aResultFilters, 38);
         f1aResults = F1AList(() => f1aResultRows);
-        F1AAdd(f1aResultPage, f1aResults, 220);
+        f1aResults.FirstVisibleChanged += F1AUpdateStickyGroup;
+        var resultList = new Panel { Dock = DockStyle.Fill, BackColor = GroupFill, Margin = Padding.Empty };
+        f1aResultGroup = F1AText("", Muted, 13);
+        f1aResultGroup.Dock = DockStyle.Top;
+        f1aResultGroup.Height = 26;
+        f1aResultGroup.BackColor = FieldFill;
+        resultList.Controls.Add(f1aResults);
+        resultList.Controls.Add(f1aResultGroup);
+        f1aResultGroup.BringToFront();
+        Round(resultList, 12);
+        F1AAdd(f1aResultPage, resultList, 220);
         f1aExpandResult = MakeButton("", false);
         f1aExpandResult.Width = English ? 200 : 170;
         f1aExpandResult.Anchor = AnchorStyles.Right;
@@ -539,7 +561,7 @@ internal sealed partial class Desktop
         f1aOpenResult.Enabled = available;
         f1aExpanded = false;
         f1aResultFilter.Clear();
-        f1aStateFilter.SelectedIndex = 0;
+        f1aResultSelection = 0;
         RefreshF1AResults();
         ShowF1APage(f1aResultPage, 2);
         {
@@ -558,30 +580,63 @@ internal sealed partial class Desktop
     {
         if (f1aResults == null || f1aExpandResult == null) return;
         bool many = f1aTotal >= 7;
-        var failed = f1aTerms.Values.Where(term => term.Outcome == "failed");
+        var failed = f1aTerms.Values.Where(term => term.Outcome == "failed").ToArray();
         var completed = f1aTerms.Values.Where(term => term.Outcome == "done")
-            .OrderByDescending(term => F1AMatched(term)).ThenBy(term => term.Index);
+            .OrderByDescending(term => F1AMatched(term)).ThenBy(term => term.Index).ToArray();
         if (many && !f1aExpanded) {
             f1aResultRows = failed.Take(3).Concat(completed.Where(term => F1AMatched(term) >= 0).Take(3)).ToList();
         } else {
             string filter = f1aResultFilter.Text.Trim();
-            IEnumerable<F1ATerm> terms = f1aStateFilter.SelectedIndex == 1 ? failed
-                : f1aStateFilter.SelectedIndex == 2 ? completed : failed.Concat(completed);
-            f1aResultRows = terms.Where(term => term.Name.IndexOf(filter, StringComparison.CurrentCultureIgnoreCase) >= 0).ToList();
+            f1aResultRows = new List<F1ATerm>();
+            if (f1aResultSelection != 2) AddF1AResultGroup(failed, filter, Ui("失败", "Failed"));
+            if (f1aResultSelection != 1) AddF1AResultGroup(completed, filter, Ui("完成", "Completed"));
+        }
+        int[] counts = { failed.Length + completed.Length, failed.Length, completed.Length };
+        string[] labels = { Ui("全部", "All"), Ui("失败", "Failed"), Ui("完成", "Completed") };
+        for (int i = 0; i < f1aStateButtons.Length; i++) {
+            var button = f1aStateButtons[i];
+            button.Text = labels[i] + " " + counts[i];
+            button.BackColor = f1aResultSelection == i ? Color.White : FieldFill;
+            button.AccessibleDescription = f1aResultSelection == i ? Ui("已选中", "Selected") : "";
         }
         f1aResultFilters.Visible = many && f1aExpanded;
+        f1aResultGroup.Visible = f1aExpanded;
+        if (f1aResultRows.Count == 0) f1aResultGroup.Text = Ui("没有匹配的关键词。", "No matching keywords.");
         f1aResultPage.RowStyles[4].Height = many && f1aExpanded ? 38 : 0;
         f1aExpandResult.Visible = many;
         f1aExpandResult.Text = f1aExpanded ? Ui("收起", "Collapse")
             : String.Format(Ui("显示全部 {0} 个关键词 ›", "Show all {0} keywords ›"), f1aTotal);
         SizeF1AList(f1aResults, f1aResultRows.Count);
+        if (f1aResultRows.Count > 0) f1aResults.EnsureVisible(0);
+        F1AUpdateStickyGroup(0);
         SizeF1AResults();
+    }
+
+    private void AddF1AResultGroup(IEnumerable<F1ATerm> group, string filter, string caption)
+    {
+        var visible = group.Where(term => term.Name.IndexOf(filter, StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray();
+        if (visible.Length == 0) return;
+        if (f1aExpanded && f1aResultRows.Count != 0)
+            f1aResultRows.Add(new F1ATerm(0, caption + " · " + visible.Length));
+        f1aResultRows.AddRange(visible);
+    }
+
+    private void F1AUpdateStickyGroup(int topIndex)
+    {
+        if (!f1aExpanded || topIndex < 0 || topIndex >= f1aResultRows.Count) return;
+        var top = f1aResultRows[topIndex];
+        if (top.IsGroup) { f1aResultGroup.Text = top.Name; return; }
+        int groupCount = f1aResultRows.Count(term => term.Outcome == top.Outcome);
+        f1aResultGroup.Text = (top.Outcome == "failed" ? Ui("失败", "Failed") : Ui("完成", "Completed")) + " · " + groupCount;
     }
 
     private void SizeF1AResults()
     {
         if (f1aResultPage == null || f1aResultPage.RowStyles.Count < 7) return;
-        f1aResultPage.RowStyles[5].Height = Math.Max(80, Math.Min(265, f1aViewport.ClientSize.Height - (f1aExpanded ? 216 : 180)));
+        int rows = Math.Max(1, f1aResultRows.Count);
+        int listHeight = rows * 36 + 4 + (f1aExpanded ? 26 : 0);
+        int room = Math.Max(80, f1aViewport.ClientSize.Height - (f1aExpanded ? 216 : 180));
+        f1aResultPage.RowStyles[5].Height = Math.Min(listHeight, Math.Min(room, 286));
     }
 
     private int F1AMatched(F1ATerm term)
@@ -590,28 +645,57 @@ internal sealed partial class Desktop
         return f1aNoteCounts.TryGetValue(term.Index, out value) ? value : -1;
     }
 
-    private ListView F1AList(Func<List<F1ATerm>> source)
+    private F1AVirtualList F1AList(Func<List<F1ATerm>> source)
     {
-        var list = new ListView { Dock = DockStyle.Fill, Margin = Padding.Empty, BorderStyle = BorderStyle.None,
+        var list = new F1AVirtualList { Dock = DockStyle.Fill, Margin = Padding.Empty, BorderStyle = BorderStyle.None,
             BackColor = GroupFill, ForeColor = Ink, FullRowSelect = true, MultiSelect = false, HeaderStyle = ColumnHeaderStyle.None,
             View = View.Details, VirtualMode = true, AccessibleName = Ui("关键词状态", "Keyword states") };
+        var rowImages = new ImageList { ImageSize = new Size(7, 34) };
+        list.SmallImageList = rowImages;
+        var image = new Bitmap(7, 34);
+        rowImages.Images.Add(image);
+        list.Disposed += delegate { rowImages.Dispose(); image.Dispose(); };
         list.Columns.Add(Ui("关键词", "Keyword"));
         list.Columns.Add(Ui("状态", "Status"), 165, HorizontalAlignment.Right);
         list.Resize += delegate { list.Columns[0].Width = Math.Max(80, list.ClientSize.Width - 185); };
         list.RetrieveVirtualItem += delegate(object sender, RetrieveVirtualItemEventArgs args) {
             var rows = source();
-            if (args.ItemIndex >= rows.Count) { args.Item = new ListViewItem(); return; }
+            if (args.ItemIndex < 0 || args.ItemIndex >= rows.Count) {
+                args.Item = new ListViewItem(new[] { "", "" });
+                return;
+            }
             F1ATerm item = rows[args.ItemIndex];
+            if (item.IsGroup) {
+                args.Item = new ListViewItem(new[] { item.Name, "" }) { BackColor = FieldFill, ForeColor = Muted, ImageIndex = 0 };
+                return;
+            }
             string symbol = item.Outcome == "done" ? "✓  " : item.Outcome == "failed" ? "×  " : "◌  ";
             int count = F1AMatched(item);
             string note = item.Outcome == "failed" ? Ui("失败 · 见日志", "Failed · See log")
                 : item.Outcome == null ? Ui("执行中", "Running")
                     : count >= 0 ? String.Format(Ui("已完成 · {0} 条", count == 1 ? "Done · {0} note" : "Done · {0} notes"), count)
                         : Ui("已完成", "Done");
-            args.Item = new ListViewItem(new[] { symbol + item.Name, note }) { UseItemStyleForSubItems = false };
+            args.Item = new ListViewItem(new[] { symbol + item.Name, note }, 0) { UseItemStyleForSubItems = false };
             args.Item.SubItems[1].ForeColor = Muted;
         };
         return list;
+    }
+
+    private sealed class F1AVirtualList : ListView
+    {
+        private const int FirstListViewRow = 0x1000 + 39;
+        internal event Action<int> FirstVisibleChanged;
+
+        [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+        private static extern IntPtr SendListMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
+
+        protected override void WndProc(ref Message message)
+        {
+            base.WndProc(ref message);
+            if (FirstVisibleChanged != null && IsHandleCreated && VirtualListSize > 0 &&
+                (message.Msg == 0x115 || message.Msg == 0x20A || message.Msg == 0x101))
+                FirstVisibleChanged(SendListMessage(Handle, FirstListViewRow, IntPtr.Zero, IntPtr.Zero).ToInt32());
+        }
     }
 
     private static void SizeF1AList(ListView list, int count)
