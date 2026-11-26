@@ -547,7 +547,7 @@ private struct MonitorView: View {
                     else { taskForm.transition(pageTransition) }
                 }
                 .frame(maxWidth: 600, alignment: .leading)
-                .padding(.top, settingsOpen ? 19 : 32)
+                .padding(.top, settingsOpen ? 19 : 35)
                 .padding(.bottom, 16)
                 .frame(maxWidth: .infinity)
             }
@@ -620,8 +620,8 @@ private struct MonitorView: View {
     }
 
     private var taskForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 7) {
                 heading(taskTitle)
                 Text(previousReport == nil
                     ? text("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report.")
@@ -774,13 +774,16 @@ private struct MonitorView: View {
     }
 
     private var advancedSettings: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: 10) {
             Button {
                 changeSettings(false)
             } label: {
                 HStack(spacing: 4) { FAIcon.back.label(14); Text(taskTitle) }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(FA.secondary)
+                    .frame(minHeight: 23)
             }
-            .buttonStyle(FAButtonStyle(kind: .plain))
+            .buttonStyle(.plain)
             heading(text("更多设置", "More settings"))
             settingsGroup(text("采集", "Collection")) {
                 settingRow(text("网页排序", "Sort order")) {
@@ -801,7 +804,10 @@ private struct MonitorView: View {
                             ForEach(1...4, id: \.self) { number in
                                 Button(text("\(number) 屏", "\(number) \(number == 1 ? "screen" : "screens")")) { screens = "\(number)" }
                             }
-                        }.menuStyle(.borderlessButton).fixedSize()
+                        }
+                        .menuStyle(.borderlessButton)
+                        .tint(FA.ink)
+                        .fixedSize()
                     }
                 }
                 if screenCount == nil { errorHint(screenError).padding(.vertical, 5) }
@@ -815,6 +821,7 @@ private struct MonitorView: View {
                         Button(text("导入模板…", "Import template…")) { chooseTemplate() }
                     }
                     .menuStyle(.borderlessButton)
+                    .tint(FA.ink)
                     .frame(maxWidth: 270, alignment: .trailing)
                     .lineLimit(1).truncationMode(.middle)
                 }
@@ -1337,6 +1344,13 @@ private enum UIFixture: String, CaseIterable {
     var total: Int { self == .manyResults || self == .expandedFallback ? 8 : 2 }
 }
 
+// The fixture viewport can be wider than a hosted runner's virtual display.
+private final class FixtureWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+}
+
 @MainActor
 private func captureFixtures(to destination: URL) throws {
     try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
@@ -1349,20 +1363,28 @@ private func captureFixtures(to destination: URL) throws {
             (fixture.isCompact ? suffix == "regular" : fixture != .narrow || suffix == "minimum") {
             let dimensions = fixture.isCompact ? NSSize(width: 440, height: 285) : size
             let controller = NSHostingController(rootView: MonitorView(fixture: fixture))
-            let window = NSWindow(contentRect: NSRect(origin: .zero, size: dimensions),
-                                  styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            let window = FixtureWindow(contentRect: NSRect(origin: .zero, size: dimensions),
+                                       styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             window.title = text("小红书舆情监控", "Xiaohongshu Monitor")
             window.isReleasedWhenClosed = false
             window.contentViewController = controller
-            window.setContentSize(dimensions)
+            window.contentMinSize = dimensions
+            window.contentMaxSize = dimensions
             window.makeKeyAndOrderFront(nil)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+            window.setContentSize(dimensions)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.40))
             let rendered = controller.view
             rendered.layoutSubtreeIfNeeded()
             guard abs(rendered.bounds.width - dimensions.width) < 1,
-                  abs(rendered.bounds.height - dimensions.height) < 1,
-                  let bitmap = rendered.bitmapImageRepForCachingDisplay(in: rendered.bounds) else {
-                throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: "Unexpected UI dimensions for \(fixture.rawValue)."])
+                  abs(rendered.bounds.height - dimensions.height) < 1 else {
+                let actual = rendered.bounds.size
+                let screenSize = window.screen?.visibleFrame.size
+                throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey:
+                    "Unexpected UI dimensions for \(fixture.rawValue): \(actual), expected \(dimensions), display \(String(describing: screenSize))."])
+            }
+            guard let bitmap = rendered.bitmapImageRepForCachingDisplay(in: rendered.bounds) else {
+                throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey:
+                    "Could not render \(fixture.rawValue) at \(dimensions) with backing scale \(window.backingScaleFactor)."])
             }
             rendered.cacheDisplay(in: rendered.bounds, to: bitmap)
             guard let data = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
