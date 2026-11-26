@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "XHS Monitor F Preview",
+  "version": "1.0.9",
+  "identifier": "com.xhsmonitor.preview",
+  "build": { "frontendDist": "../frontend" },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "XHS Monitor F Preview",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 380,
+        "minHeight": 320,
+        "center": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb"],
+    "icon": ["icons/icon.png"],
+    "publisher": "Xiaohongshu Monitor project",
+    "shortDescription": "Interactive F interface preview with sample data",
+    "longDescription": "Preview the F interface for Xiaohongshu Monitor. All monitoring, browser login and report states use local sample data.",
+    "linux": {
+      "deb": {
+        "depends": ["libc6 (>= 2.34)"]
+      }
+    }
+  }
+}

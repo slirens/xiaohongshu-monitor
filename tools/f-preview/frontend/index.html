@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小红书舆情监控 · F 界面预览</title>
+  <link rel="stylesheet" href="./app.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main id="setup">
+    <header class="brand"><span>小红书舆情监控</span><small>F 界面预览 · 样例数据</small></header>
+    <div class="column">
+      <ol id="stages" class="stages" aria-label="任务阶段">
+        <li aria-current="step">设置任务</li>
+        <li>执行监控</li>
+        <li>查看报告</li>
+      </ol>
+      <form id="task" class="panel">
+        <h1 id="title">新建监控</h1>
+        <p id="intro" class="intro">设置关键词和日期范围，检索后导出 Excel 报告。</p>
+        <div class="modes" aria-label="监控方式">
+          <button type="button" id="new" aria-pressed="true">新建监控</button>
+          <button type="button" id="continue" aria-pressed="false">继续监控</button>
+        </div>
+        <div id="previous" class="previous" hidden>
+          <div><small>上次报告</small><strong id="file-name">宝山_2026-11-24_2词_173050.xlsx</strong></div>
+          <button id="change-report" type="button">选取样例报告</button>
+        </div>
+        <label for="keyword">关键词</label>
+        <textarea id="keyword" rows="1" required placeholder="输入关键词，例如 宝山 硚口" aria-describedby="keyword-help"></textarea>
+        <small id="keyword-help" class="field-help">用空格分隔，每个关键词依次检索。</small>
+        <div class="pair">
+          <div><label for="start">开始日期</label><input id="start" type="date" value="2026-11-25" required></div>
+          <div><label for="end">结束日期</label><input id="end" type="date" value="2026-11-25" required></div>
+        </div>
+        <details id="settings">
+          <summary><span>更多设置</span><small id="setting-summary">最新排序 · 下拉到底</small></summary>
+          <div class="pair settings">
+            <div><label for="sort">网页排序</label><select id="sort"><option>最新</option><option>综合</option></select></div>
+            <div><label for="screens">划屏数量</label><input id="screens" type="number" min="1" max="10000" placeholder="下拉到底"></div>
+            <div><label for="template">报告生成模板</label><input id="template" accept=".md,text/markdown" type="file"></div>
+            <div><label for="provider">AI 服务商</label><select id="provider">
+              <option>OpenAI</option><option>Claude</option><option>Gemini</option><option>DeepSeek</option>
+              <option>Kimi</option><option>GLM</option><option>Qwen</option>
+            </select></div>
+            <div><label for="model">模型（可选）</label><input id="model" placeholder="使用默认模型"></div>
+            <div><label for="key">API 密钥（可选）</label><input id="key" type="password" autocomplete="off" placeholder="样例体验无需密钥" disabled></div>
+          </div>
+        </details>
+        <p id="notice" role="status" hidden></p>
+        <div class="form-footer">
+          <div class="actions">
+            <button type="button" id="open-reports">报告目录</button>
+            <button type="submit" class="primary" id="start-task">开始监控</button>
+          </div>
+          <p class="terms">仅限合法、非商业使用。自动化浏览可能触发平台警告或限制。</p>
+        </div>
+      </form>
+    </div>
+  </main>
+  <section id="execution" class="execution" aria-label="监控任务" hidden>
+    <header>监控任务</header>
+    <div class="run-body">
+      <div class="indicator"></div>
+      <p id="run-state" class="run-state">启动中</p>
+      <h2 id="run-title" tabindex="-1">正在启动浏览器</h2>
+      <p id="run-detail">准备开始检索，完成后生成一份 Excel 报告。</p>
+      <strong id="run-count" aria-live="polite">正在准备任务</strong>
+      <progress id="read-progress" aria-label="关键词处理进度" max="1"></progress>
+      <div class="run-actions">
+        <button id="run-primary" class="primary" type="button">后台执行</button>
+        <button id="stop" type="button">停止任务</button>
+      </div>
+    </div>
+  </section>
+  <aside id="background" class="background" hidden>
+    <span id="background-status" role="status">任务在后台运行</span>
+    <button id="restore" type="button">还原任务窗口</button>
+  </aside>
+  <dialog id="confirm-stop" aria-labelledby="stop-title">
+    <h2 id="stop-title">停止当前监控？</h2>
+    <p>已经导入的报告、关键词和日期仍然可用。</p>
+    <form method="dialog" class="actions">
+      <button value="keep" autofocus>继续执行</button>
+      <button value="stop" class="primary">停止任务</button>
+    </form>
+  </dialog>
+</body>
+</html>

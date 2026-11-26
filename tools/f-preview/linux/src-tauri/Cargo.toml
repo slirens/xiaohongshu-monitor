@@ -1,0 +1,15 @@
+[package]
+name = "xiaohongshu-monitor-f-preview"
+version = "1.0.9"
+edition = "2021"
+description = "Interactive F interface preview with sample data"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+tauri = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

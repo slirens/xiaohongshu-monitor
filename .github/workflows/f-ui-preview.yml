@@ -1,0 +1,113 @@
+name: Build and validate F preview installers
+
+on:
+  push:
+    branches: [release/f-ui-preview]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: F Preview DMG / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64 }
+          - { runner: macos-15-intel, arch: x86_64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - run: rustup toolchain install stable --profile minimal --no-self-update
+      - name: Build, mount, and run the F preview DMG
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: bash tools/f-preview/run-macos.sh tools/f-preview/frontend "$RUNNER_TEMP/f-preview-proof" "$EXPECTED_ARCH" "$RUNNER_TEMP/f-preview-assets"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f-preview-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/f-preview-assets/*.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: f-preview-macos-${{ matrix.arch }}-proof
+          path: ${{ runner.temp }}/f-preview-proof
+          if-no-files-found: warn
+
+  linux:
+    name: F Preview DEB / Ubuntu 22.04
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Install native build and display test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev imagemagick fonts-dejavu-core fonts-noto-cjk xvfb xauth xdotool openbox dbus-x11
+      - run: rustup toolchain install 1.100.0 --profile minimal --no-self-update
+      - name: Build, install and launch the preview
+        run: bash tools/f-preview/run-linux-ci.sh "$RUNNER_TEMP/f-preview-proof" "$RUNNER_TEMP/f-preview-assets"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f-preview-linux-amd64
+          path: ${{ runner.temp }}/f-preview-assets/*.deb
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: f-preview-linux-amd64-proof
+          path: ${{ runner.temp }}/f-preview-proof
+          if-no-files-found: warn
+
+  windows:
+    name: F Preview Setup / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    runs-on: windows-2025
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.14.0'
+      - name: Prepare the shared preview
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'f-preview-stage'
+          New-Item -ItemType Directory -Path $stage -ErrorAction Stop | Out-Null
+          node tools/f-preview/prepare.mjs tools/f-preview/frontend $stage
+          if ($LASTEXITCODE -ne 0) { throw 'Preview preparation failed.' }
+          "XHS_PREVIEW_STAGE=$stage" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+      - name: Build, install and exercise the preview
+        shell: pwsh
+        run: |
+          & './tools/f-preview/verify-windows-preview.ps1' -Stage $env:XHS_PREVIEW_STAGE -Architecture '${{ matrix.arch }}' -Evidence (Join-Path $env:RUNNER_TEMP 'f-preview-proof') -Artifacts (Join-Path $env:RUNNER_TEMP 'f-preview-assets')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f-preview-windows-${{ matrix.arch }}
+          path: ${{ runner.temp }}/f-preview-assets/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: f-preview-windows-${{ matrix.arch }}-proof
+          path: ${{ runner.temp }}/f-preview-proof
+          if-no-files-found: warn

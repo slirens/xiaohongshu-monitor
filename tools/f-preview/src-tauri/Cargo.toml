@@ -1,0 +1,20 @@
+[package]
+name = "xhs-monitor-f-preview"
+version = "1.0.9"
+edition = "2021"
+description = "F interface preview with sample data"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[build-dependencies]
+tauri-build = "=2.7.6"
+
+[dependencies]
+tauri = "=2.12.7"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+debug = 0
+incremental = false

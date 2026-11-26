@@ -1,0 +1,27 @@
+body {
+  box-sizing: border-box;
+  width: 280px;
+  margin: 0;
+  padding: 18px;
+  background: #f2f2fb;
+  color: #18162c;
+  font: 14px/1.55 system-ui, sans-serif;
+}
+h1 {
+  margin: 0;
+  font-size: 19px;
+}
+p {
+  margin: 8px 0 16px;
+}
+a {
+  display: block;
+  padding: 10px;
+  border-radius: 9px;
+  background: #4f46b8;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+a:focus-visible { outline: 2px solid #4f46b8; outline-offset: 3px; }
