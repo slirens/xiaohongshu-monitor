@@ -18,7 +18,7 @@ FULL_MINIMUM = (880, 590)
 COMPACT_MINIMUM = (290, 180)
 CONTENT_WIDTH = 600
 COMPACT_BREAKPOINT = 620
-DONE_LINE = re.compile(r"^(\d+)/(\d+) (?:已处理 · .+[」](完成|失败)|processed · .+[”](completed|failed))$")
+DONE_LINE = re.compile(r"^(\d+)/(\d+) (?:已处理 · 「.+」(完成|失败)|processed · “.+” (completed|failed))$")
 START_LINE = re.compile(r"^(?:开始关键词 |Starting keyword )(\d+)/(\d+)[:：]")
 
 
@@ -58,6 +58,25 @@ class Group(tk.Frame):
         canvas.addtag_withtag("group", item)
 
 
+class ProgressTrack(tk.Canvas):
+    def __init__(self, parent):
+        super().__init__(parent, background=WHITE, height=4, highlightthickness=0, takefocus=False)
+        self.completed, self.total = 0, 1
+        self.bind("<Configure>", self.paint)
+
+    def update_progress(self, completed, total):
+        self.completed, self.total = completed, max(1, total)
+        self.paint()
+
+    def paint(self, _=None):
+        width = self.winfo_width()
+        self.delete("track")
+        self.create_line(2, 2, width - 2, 2, width=4, capstyle="round", fill=FILL, tags="track")
+        if self.completed:
+            extent = max(2, min(width - 2, width * self.completed / self.total))
+            self.create_line(2, 2, extent, 2, width=4, capstyle="round", fill=BRAND, tags="track")
+
+
 class MonitorView:
     def build_view(self):
         self.page = "setup"
@@ -89,6 +108,7 @@ class MonitorView:
         self.window.bind("<Button-5>", lambda e: self._scroll_page(e, 2), add="+")
         self.window.bind("<MouseWheel>", lambda e: self._scroll_page(e, -int(e.delta / 60)), add="+")
         self.window.bind("<Configure>", self._window_resized, add="+")
+        self.window.bind("<FocusIn>", self._scroll_to_focus, add="+")
         self.window.bind("<Control-b>", self._keyboard_background)
         self.window.bind("<Control-period>", self._keyboard_stop)
         self.window.bind("<Return>", self._keyboard_start)
@@ -133,10 +153,9 @@ class MonitorView:
         theme.configure("TCombobox", fieldbackground=WHITE, foreground=INK,
                         padding=(6, 3), lightcolor=WHITE, darkcolor=WHITE, bordercolor=EDGE, arrowsize=12)
         theme.map("TCombobox", fieldbackground=[("readonly", WHITE)], bordercolor=[("focus", BRAND), ("invalid", ACCENT)])
-        theme.configure("F1A.Horizontal.TProgressbar", troughcolor=FILL, background=BRAND,
-                        bordercolor=FILL, lightcolor=BRAND, darkcolor=BRAND, thickness=4, pbarrelief="flat")
         for name, fill, hover, fg, row_color, pad in (
             ("TButton", FILL, "#e8e8e8", INK, WHITE, (13, 7)),
+            ("Compact.TButton", FILL, "#e8e8e8", INK, WHITE, (3, 7)),
             ("Primary.TButton", ACCENT, "#c81232", WHITE, WHITE, (16, 7)),
             ("Link.TButton", WHITE, FILL, MUTED, WHITE, (5, 6)),
             ("GroupLink.TButton", GROUP, FILL, MUTED, GROUP, (6, 4)),
@@ -151,7 +170,7 @@ class MonitorView:
             focused_image = self._button_image(fill, row_color, focus=True)
             disabled_image = self._button_image(FILL if name.startswith("Primary") else fill, row_color)
             theme.element_create(element, "image", normal_image, ("disabled", disabled_image),
-                                 ("focus", focused_image), ("active", hovered_image), border=9, sticky="nsew")
+                                 ("focus", focused_image), ("active", hovered_image), border=9, padding=0, sticky="nsew")
             theme.layout(name, [(element, {"sticky": "nsew", "children": [
                 ("Button.padding", {"sticky": "nsew", "children": [
                     ("Button.label", {"sticky": "nsew"}),
@@ -353,11 +372,13 @@ class MonitorView:
         self.settings_summary = self._button(row, "", self.toggle_options, kind="GroupLink.TButton", icon="chevron")
         self.settings_summary.configure(compound="right")
         self.settings_summary.pack(side="right")
-        ttk.Label(panel, textvariable=self.status, style="Muted.TLabel", wraplength=580).pack(anchor="w", pady=(10, 0))
+        self.setup_feedback = ttk.Label(panel, textvariable=self.status, style="Muted.TLabel", wraplength=580)
+        self.status.trace_add("write", self._update_setup_feedback)
 
     def _build_settings(self, panel):
-        self._button(panel, self.ui("返回任务设置", "Back to task setup"),
-                     lambda: self.show_page("setup"), kind="Link.TButton", icon="back").pack(anchor="w", pady=(11, 2))
+        self.settings_back = self._button(panel, self.ui("返回任务设置", "Back to task setup"),
+                                          lambda: self.show_page("setup"), kind="Link.TButton", icon="back")
+        self.settings_back.pack(anchor="w", pady=(11, 2))
         ttk.Label(panel, text=self.ui("更多设置", "More settings"), style="SubTitle.TLabel").pack(anchor="w")
         collection = self._section(panel, self.ui("采集", "Collection"), margin=8)
         row = self._row(collection, self.ui("网页排序", "Sort order"), height=36)
@@ -415,7 +436,7 @@ class MonitorView:
         ttk.Label(live, textvariable=self.status, style="Medium.TLabel", wraplength=572).pack(
             side="left", fill="x", expand=True, padx=(6, 0))
         ttk.Label(panel, textvariable=self.run_counts, style="Caption.TLabel").pack(anchor="w", pady=(6, 12))
-        self.progress = ttk.Progressbar(panel, mode="determinate", style="F1A.Horizontal.TProgressbar")
+        self.progress = ProgressTrack(panel)
         self.progress.pack(fill="x")
         self.details = ttk.Frame(self.body)
         ttk.Label(self.details, text=self.ui("执行日志", "Activity log"), style="Caption.TLabel").pack(
@@ -473,14 +494,16 @@ class MonitorView:
         self.compact_headline = ttk.Label(self.compact, textvariable=self.status, style="Medium.TLabel", wraplength=402)
         self.compact_headline.pack(anchor="w", pady=(17, 6))
         ttk.Label(self.compact, textvariable=self.run_counts, style="Caption.TLabel").pack(anchor="w", pady=(0, 7))
-        self.compact_progress = ttk.Progressbar(self.compact, mode="determinate", style="F1A.Horizontal.TProgressbar")
+        self.compact_progress = ProgressTrack(self.compact)
         self.compact_progress.pack(fill="x")
         buttons = ttk.Frame(self.compact)
         buttons.pack(side="bottom", fill="x")
         buttons.columnconfigure((0, 1), weight=1, uniform="action")
-        self.compact_background = self._button(buttons, self.ui("后台执行", "Background"), self.background, icon="tray")
+        self.compact_background = self._button(buttons, self.ui("后台执行", "Background"), self.background,
+                                               kind="Compact.TButton", icon="tray")
         self.compact_background.grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        self.compact_stop = self._button(buttons, self.ui("停止任务", "Stop task"), self.confirm_stop, icon="stop")
+        self.compact_stop = self._button(buttons, self.ui("停止任务", "Stop task"), self.confirm_stop,
+                                        kind="Compact.TButton", icon="stop")
         self.compact_stop.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
     def _resize_body(self, _=None):
@@ -496,6 +519,20 @@ class MonitorView:
             return
         if self.body.winfo_height() > self.viewport.winfo_height():
             self.viewport.yview_scroll(units, "units")
+
+    def _scroll_to_focus(self, event):
+        widget = event.widget
+        total = self.body.winfo_height()
+        visible_height = self.viewport.winfo_height()
+        if total <= visible_height or not str(widget).startswith(f"{self.body}."):
+            return
+        offset = self.viewport.canvasy(0)
+        top = widget.winfo_rooty() - self.viewport.winfo_rooty()
+        bottom = top + widget.winfo_height()
+        if top < 0:
+            self.viewport.yview_moveto(max(0, offset + top - 5) / total)
+        elif bottom > visible_height:
+            self.viewport.yview_moveto((offset + bottom - visible_height + 5) / total)
 
     def _window_resized(self, event):
         if event.widget is not self.window:
@@ -533,6 +570,10 @@ class MonitorView:
         if page == "running":
             self.details.pack(in_=self.pages["running"], fill="x", pady=(17, 8))
         self.details_button.configure(text=self.ui("执行日志", "Activity log"))
+        if page == "setup":
+            self._update_setup_feedback()
+        elif page == "settings":
+            self.settings_back.focus_set()
         self.viewport.yview_moveto(0)
         self._resize_body()
 
@@ -574,7 +615,7 @@ class MonitorView:
         self.run_counts.set(self.ui(f"已处理 {done} / {total} 个关键词", f"{done} of {total} keywords processed")
                             if total else "")
         for bar in (self.progress, self.compact_progress):
-            bar.configure(value=done, maximum=max(1, total))
+            bar.update_progress(done, total)
         waiting = self.dialog is not None and self.page == "running"
         title = self.ui("等待网页操作", "Waiting for browser interaction") if waiting else self.ui("正在采集笔记", "Collecting notes")
         self.live_title.configure(text=title)
@@ -640,6 +681,12 @@ class MonitorView:
         while end and font.measure(value[:end] + "…") > limit:
             end -= 1
         return value[:end] + "…"
+
+    def _update_setup_feedback(self, *_):
+        if self.status.get() == self.ui("准备就绪", "Ready"):
+            self.setup_feedback.pack_forget()
+        elif not self.setup_feedback.winfo_manager():
+            self.setup_feedback.pack(anchor="w", pady=(10, 0))
 
     def _keyword_modified(self, _=None):
         if self.keyword.edit_modified():
@@ -770,8 +817,11 @@ class MonitorView:
 
     def center_dialog(self, dialog):
         dialog.update_idletasks()
-        x = self.window.winfo_rootx() + (self.window.winfo_width() - dialog.winfo_reqwidth()) // 2
-        y = self.window.winfo_rooty() + (self.window.winfo_height() - dialog.winfo_reqheight()) // 2
+        minimum_width, minimum_height = dialog.minsize()
+        dialog_width = max(dialog.winfo_reqwidth(), minimum_width)
+        dialog_height = max(dialog.winfo_reqheight(), minimum_height)
+        x = self.window.winfo_rootx() + (self.window.winfo_width() - dialog_width) // 2
+        y = self.window.winfo_rooty() + (self.window.winfo_height() - dialog_height) // 2
         dialog.geometry(f"+{max(0, x)}+{max(0, y)}")
 
     def _keyboard_start(self, event):

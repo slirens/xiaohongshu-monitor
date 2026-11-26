@@ -475,13 +475,15 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         dialog.title(title)
         dialog.transient(self.window)
         dialog.resizable(False, False)
+        width = min(380, max(250, self.window.winfo_width() - 20))
+        dialog.minsize(width, 0)
         panel = ttk.Frame(dialog, padding=20)
-        panel.pack()
+        panel.pack(fill="both", expand=True)
         logo = self._logo(32)
         if logo:
             ttk.Label(panel, image=logo).pack(anchor="w", pady=(0, 8))
         ttk.Label(panel, text=title, style="Medium.TLabel").pack(anchor="w")
-        ttk.Label(panel, text=text, style="Muted.TLabel", wraplength=340, justify="left").pack(
+        ttk.Label(panel, text=text, style="Muted.TLabel", wraplength=width - 40, justify="left").pack(
             anchor="w", pady=(8, 0))
         buttons = ttk.Frame(panel)
         buttons.pack(fill="x", pady=(14, 0))
