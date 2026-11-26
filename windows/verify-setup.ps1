@@ -21,13 +21,35 @@ $fixture = Join-Path $directory.FullName 'notes.json'
 Set-Content -LiteralPath $fixture -Encoding utf8NoBOM -Value '[{"title":"之禾 咖啡","body":"用于安装后验证的笔记","date":"2026-11-21","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]'
 $installArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', ('/DIR="{0}"' -f $appFolder))
 
-function Invoke-CheckedProcess($Executable, $Arguments, $Activity) {
-    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WindowStyle Hidden -PassThru
-    if (!$process.WaitForExit(90000)) {
-        $process.Kill()
-        throw "$Activity timed out."
+function Invoke-CheckedProcess($Executable, $Arguments, $Activity, [int]$TimeoutSeconds = 90, [switch]$CaptureOutput) {
+    Write-Host "[$Architecture] $Activity started."
+    $log = Join-Path $directory.FullName ([guid]::NewGuid().ToString('N'))
+    $out = "$log.stdout"
+    $err = "$log.stderr"
+    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    try {
+        $exited = $process.WaitForExit($TimeoutSeconds * 1000)
+        if (!$exited) {
+            try {
+                $process.Kill($true)
+            } catch [InvalidOperationException] {
+                if (!$process.HasExited) { throw }
+            }
+            [void]$process.WaitForExit(5000)
+        }
+
+        $stdout = Get-Content -LiteralPath $out -Raw
+        if ($stdout -and (!$CaptureOutput -or !$exited -or $process.ExitCode -ne 0)) { Write-Host $stdout.TrimEnd() }
+        $stderr = Get-Content -LiteralPath $err -Raw
+        if ($stderr) { Write-Host $stderr.TrimEnd() }
+        if (!$exited) { throw "$Activity timed out after $TimeoutSeconds seconds." }
+        if ($process.ExitCode -ne 0) { throw "$Activity failed ($($process.ExitCode))." }
+
+        Write-Host "[$Architecture] $Activity completed."
+        if ($CaptureOutput) { $stdout }
+    } finally {
+        $process.Dispose()
     }
-    if ($process.ExitCode -ne 0) { throw "$Activity failed ($($process.ExitCode))." }
 }
 
 Invoke-CheckedProcess $setupPath $installArguments 'Installation'
@@ -37,7 +59,8 @@ if ($registration.InstallLocation.Trim('"').TrimEnd('\') -ne $appFolder) { throw
 if ($registration.DisplayVersion -ne $Version) { throw 'The registered app version is incorrect.' }
 if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion -ne $Version) { throw 'The installed executable version is incorrect.' }
 $expected = if ($Architecture -eq 'x64') { 'x64' } else { 'ia32' }
-if ((& $node -p 'process.arch') -ne $expected -or $LASTEXITCODE -ne 0) {
+$actual = Invoke-CheckedProcess $node @('-p', 'process.arch') 'Installed Node architecture' -TimeoutSeconds 15 -CaptureOutput
+if ("$actual".Trim() -ne $expected) {
     throw "The installed Node runtime does not match $Architecture."
 }
 $env:XHS_AI_KEY = $null
@@ -47,16 +70,21 @@ Invoke-CheckedProcess $exe @('--verify-ui', 'zh-CN') 'Simplified Chinese interfa
 if ($env:XHS_UI_SCREENSHOTS) {
     $capture = Join-Path $directory.FullName 'capture-f1a.exe'
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-    & $compiler /nologo /target:exe "/platform:$Architecture" /codepage:65001 "/out:$capture" /r:System.Windows.Forms.dll /r:System.Drawing.dll (Join-Path $PSScriptRoot 'CaptureF1A.cs')
-    if ($LASTEXITCODE) { throw 'F+1A screenshot fixture compilation failed.' }
+    $compileArgs = @('/nologo', '/target:exe', "/platform:$Architecture", '/codepage:65001',
+        ('/out:"{0}"' -f $capture), '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+        ('"{0}"' -f (Join-Path $PSScriptRoot 'CaptureF1A.cs')))
+    Invoke-CheckedProcess $compiler $compileArgs 'F+1A screenshot fixture compilation' -TimeoutSeconds 60
     foreach ($locale in @('zh-CN', 'en')) {
         Invoke-CheckedProcess $capture @(('"{0}"' -f $exe), $locale, ('"{0}"' -f $env:XHS_UI_SCREENSHOTS)) "F+1A screenshots ($locale)"
     }
 }
 Invoke-CheckedProcess $exe @('--verify', ('"{0}"' -f $fixture)) 'Installed desktop smoke test'
 $worker = Join-Path $appFolder 'runtime/monitor.mjs'
-& $node (Join-Path $PSScriptRoot '../tests/verify-warm-worker.cjs') $worker
-if ($LASTEXITCODE -ne 0) { throw 'Installed worker prewarm verification failed.' }
+$warmWorkerArgs = @(
+    ('"{0}"' -f (Join-Path $PSScriptRoot '../tests/verify-warm-worker.cjs')),
+    ('"{0}"' -f $worker)
+)
+Invoke-CheckedProcess $node $warmWorkerArgs 'Installed worker prewarm verification' -TimeoutSeconds 120
 $report = Get-ChildItem -LiteralPath (Join-Path $appFolder 'reports') -Filter '*.xlsx'
 if (@($report).Count -ne 1) { throw 'Expected one combined Excel report.' }
 if ($report.Name -notmatch '^舆情_\d{6}_[a-f0-9]+\.xlsx$') { throw 'Unexpected report filename.' }
@@ -81,8 +109,7 @@ const { Workbook } = require(process.env.XHS_VERIFY_EXCELJS);
 '@
 $checkFile = Join-Path $directory.FullName 'verify-workbook.cjs'
 Set-Content -LiteralPath $checkFile -Encoding utf8NoBOM -Value $check
-& $node $checkFile
-if ($LASTEXITCODE -ne 0) { throw 'Workbook verification failed.' }
+Invoke-CheckedProcess $node @(('"{0}"' -f $checkFile)) 'Workbook verification' -TimeoutSeconds 30
 
 # Verify that generated data survives a reinstall and removal of installed files.
 $profile = New-Item -ItemType Directory -Path (Join-Path $appFolder '.chrome-session')

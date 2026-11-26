@@ -18,6 +18,7 @@ internal static class CaptureF1A
     {
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(args[1]);
         Directory.CreateDirectory(args[2]);
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         desktop = Assembly.LoadFrom(args[0]).GetType("Desktop", true);
