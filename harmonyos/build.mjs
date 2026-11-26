@@ -23,7 +23,25 @@ if (version !== undefined) {
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 }
 await cp(join(root, '..', 'LICENSE'), join(output, 'LICENSE'));
-await cp(join(root, '..', 'cover.png'), join(output, 'cover.png'));
+const design = join(root, '..', 'design', 'v2');
+const icons = join(output, 'icons');
+await mkdir(icons);
+for (const name of ['alert', 'back', 'check', 'chevron', 'doc', 'search', 'spinner', 'stop', 'tray', 'xmark']) {
+  await cp(join(design, 'icons', name + '.svg'), join(icons, name + '.svg'));
+}
+const logoPath = join(design, 'logo', 'xhs-monitor-logo');
+await cp(logoPath + '.svg', join(icons, 'logo.svg'));
+for (const size of [16, 32, 128]) {
+  await cp(`${logoPath}-${size}.png`, join(icons, `logo-${size}.png`));
+}
+// The final Windows ICO includes the original 48px PNG from the same logo.
+const ico = await readFile(logoPath + '.ico');
+const size48 = Array.from({ length: ico.readUInt16LE(4) }, (_, index) => 6 + index * 16)
+  .find(offset => ico[offset] === 48 && ico[offset + 1] === 48);
+if (size48 === undefined) throw new Error('The brand icon is missing its 48px rendition.');
+const logo48 = ico.readUInt32LE(size48 + 12);
+const logo48Bytes = ico.readUInt32LE(size48 + 8);
+await writeFile(join(icons, 'logo-48.png'), ico.subarray(logo48, logo48 + logo48Bytes));
 await cp(join(root, '..', '报告生成模板.md'), join(output, '报告生成模板.md'));
 await cp(join(root, '..', 'report-template.mjs'), join(output, 'report-template.mjs'));
 await cp(join(root, '..', 'continuation.mjs'), join(output, 'continuation.mjs'));

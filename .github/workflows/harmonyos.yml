@@ -57,7 +57,13 @@ jobs:
           XHS_RUNTIME: ${{ github.workspace }}
           XHS_TEST_DIRECTORY: ${{ runner.temp }}
           XHS_TEST_EXTENSION: ${{ runner.temp }}/unpacked
+          XHS_SCREENSHOT_DIRECTORY: ${{ runner.temp }}/harmonyos-ui
         run: node harmonyos/tests/verify-extension.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonyos-ui
+          path: ${{ runner.temp }}/harmonyos-ui
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: harmonyos-browser

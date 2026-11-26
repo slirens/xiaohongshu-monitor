@@ -4,76 +4,190 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-en="Xiaohongshu Monitor">小红书舆情监控</title>
+  <link rel="icon" href="icons/logo-32.png">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main class="workbench">
-    <aside class="sidebar">
-      <img src="cover.png" width="195" height="183" alt="">
-      <p class="brand" data-en="Xiaohongshu Monitor">小红书舆情监控</p>
-    </aside>
-    <div class="workspace">
-      <header>
-        <h1 data-en="New monitoring task">新建监控任务</h1>
-        <p data-en="Collect notes by keyword and date, then export to Excel.">按关键词和日期采集笔记，导出 Excel 报告。</p>
-      </header>
-      <form id="job">
-        <div class="continuation-actions">
-          <button type="button" class="secondary" id="continue-job" data-en="Continue monitoring">继续监控</button>
-          <button type="button" class="secondary" id="import-report-button" data-en="Import another report" hidden>导入其他报告</button>
-          <button type="button" class="secondary" id="clear-report" data-en="New monitoring task" hidden>新建监控</button>
+  <main class="workbench" data-stage="setup">
+    <header class="toolbar">
+      <div class="brand"><img src="icons/logo.svg" width="22" height="22" alt=""><span data-en="Xiaohongshu Monitor">小红书舆情监控</span></div>
+      <ol class="steps" aria-label="监控步骤" data-en-aria="Monitoring steps">
+        <li aria-current="step"><span class="step-index">1</span><span data-en="Set up">设置任务</span></li>
+        <li><span class="step-index">2</span><span data-en="Monitor">执行监控</span></li>
+        <li><span class="step-index">3</span><span data-en="Export">导出结果</span></li>
+      </ol>
+      <button type="button" id="open-log" class="plain icon-button" aria-label="查看执行日志" data-en-aria="View activity log" disabled>
+        <span class="icon doc" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <div class="page-scroll">
+      <form id="job" novalidate>
+        <section id="setup" class="page" aria-labelledby="setup-title">
+          <h1 id="setup-title" tabindex="-1" data-en="New monitoring task">新建监控任务</h1>
+          <p class="subtitle" data-en="Collect notes by keyword and date, then export to Excel.">按关键词和日期采集笔记，导出 Excel 报告。</p>
+          <div class="segments" aria-label="任务类型" data-en-aria="Task type" role="group">
+            <button type="button" id="clear-report" aria-pressed="true" data-en="New monitoring">新建监控</button>
+            <button type="button" id="continue-job" aria-pressed="false" data-en="Continue monitoring…">继续监控…</button>
+          </div>
+          <div id="report-card" class="group" hidden>
+            <div class="row report-row">
+              <span id="report-source" role="status"></span>
+              <button type="button" id="import-report-button" class="secondary" data-en="Change report…">更换报告…</button>
+            </div>
+          </div>
           <input id="import-report" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
-          <p id="report-source" role="status" hidden></p>
-        </div>
-        <label for="terms" data-en="Keywords">关键词</label>
-        <textarea id="terms" name="terms" rows="1" placeholder="多个关键词用空格分隔，例如 宝山 硚口" data-en-placeholder="Separate keywords with spaces, e.g. Baoshan Qiaokou" required></textarea>
-        <div class="two">
-          <label><span data-en="Start date">开始日期</span><input id="start" type="date" required></label>
-          <label><span data-en="End date">结束日期</span><input id="end" type="date" required></label>
-        </div>
-        <details>
-          <summary>
+          <div id="terms-box" class="terms-box">
+            <label for="terms" data-en="Keywords">关键词</label>
+            <textarea id="terms" name="terms" rows="1" placeholder="宝山 硚口" data-en-placeholder="Baoshan Qiaokou" aria-describedby="terms-hint terms-error" required></textarea>
+            <div id="keyword-tokens" class="tokens" hidden></div>
+            <span id="terms-error-icon" class="icon alert" aria-hidden="true" hidden></span>
+          </div>
+          <p class="footnote" id="terms-hint" data-en="Separate keywords with spaces. Each keyword runs in order.">多个关键词用空格分隔，每个关键词依次检索。</p>
+          <p id="terms-error" class="field-error" hidden></p>
+          <div class="group dates">
+            <label class="row" for="start"><span data-en="Start date">开始日期</span><input id="start" type="date" aria-describedby="date-hint date-error" required></label>
+            <label class="row" for="end"><span data-en="End date">结束日期</span><input id="end" type="date" aria-describedby="date-hint date-error" required></label>
+          </div>
+          <p class="footnote" id="date-hint" data-en="Beijing time. Both dates are included.">北京时间，包含开始与结束当天。</p>
+          <p id="date-error" class="field-error" hidden></p>
+          <button class="group row more" type="button" id="open-settings">
             <span data-en="More settings">更多设置</span>
-            <span id="settings-summary" class="settings-summary"></span>
-          </summary>
-          <div class="settings-options">
-            <div class="two">
-              <label><span data-en="Sort by">排序</span><select id="sort">
+            <span id="settings-summary" class="muted"></span>
+            <span class="icon chevron" aria-hidden="true"></span>
+          </button>
+          <p id="settings-error" class="field-error" hidden></p>
+        </section>
+
+        <section id="settings" class="page settings" aria-labelledby="settings-title" hidden>
+          <button type="button" class="plain back" id="close-settings">
+            <span class="icon back-icon" aria-hidden="true"></span><span data-en="Set up task">设置任务</span>
+          </button>
+          <h1 id="settings-title" tabindex="-1" data-en="More settings">更多设置</h1>
+          <h2 class="section-title" data-en="Collection">采集</h2>
+          <div class="group">
+            <div class="row">
+              <span id="sort-label" data-en="Sort by">网页排序</span>
+              <div class="segments" role="radiogroup" aria-labelledby="sort-label">
+                <label><input type="radio" name="sort-control" value="最新" checked><span data-en="Latest">最新</span></label>
+                <label><input type="radio" name="sort-control" value="综合"><span data-en="Relevance">综合</span></label>
+              </div>
+              <select id="sort" hidden aria-hidden="true" tabindex="-1">
                 <option value="最新" data-en="Latest">最新</option>
                 <option value="综合" data-en="Relevance">综合</option>
-              </select></label>
-              <label><span data-en="Number of screens">划屏数量</span><input id="screens" type="number" min="1" max="10000" step="1" placeholder="下拉到底" data-en-placeholder="Scroll to end"></label>
-              <label><span data-en="AI provider">AI 服务商</span><select id="provider"><option value="" data-en="Skip AI analysis">跳过 AI 分析</option></select></label>
-              <label><span data-en="Model">模型</span><input id="model" type="text" placeholder="使用服务商默认模型" data-en-placeholder="Use the provider’s default model" disabled></label>
-              <label><span data-en="API key">API 密钥</span><input id="key" type="password" autocomplete="off" placeholder="仅用于本次任务" data-en-placeholder="Used for this task only" disabled></label>
-              <label><span data-en="Report template">报告规则模板</span><input id="template" type="file" accept=".md,text/markdown" aria-describedby="template-status"></label>
+              </select>
             </div>
-            <p id="template-status" role="status" data-en="Using the built-in template">当前使用内置模板</p>
-            <button type="button" class="secondary" id="reset-template" data-en="Use built-in template" hidden>使用内置模板</button>
-            <p id="ai-hint" data-en="When AI is enabled, note titles and excerpts are sent to the selected provider." hidden>选用 AI 时，笔记标题和正文片段会发送给所选服务商。</p>
+            <label class="row" for="screens"><span data-en="Number of screens">划屏数量</span><span class="muted row-hint" data-en="1–4 or enter a positive integer">1–4 屏，或输入正整数</span><input id="screens" type="number" min="1" max="10000" step="1" placeholder="下拉到底" data-en-placeholder="Scroll to end"></label>
           </div>
-        </details>
-        <div class="task-bar">
-          <p id="status" role="status" data-en="Ready">准备就绪</p>
-          <div class="actions">
-            <button type="button" class="secondary" id="show-browser" data-en="Open collection tab" hidden>打开采集标签页</button>
-            <button type="button" class="secondary" id="stop" data-en="Stop" hidden>停止</button>
-            <button type="button" class="secondary" id="download" data-en="Download Excel" hidden>下载 Excel</button>
-            <button type="submit" id="start-job" data-en="Start monitoring">开始监控</button>
+          <h2 class="section-title" data-en="Report">报告</h2>
+          <div class="group">
+            <div class="row">
+              <span data-en="Report template">报告生成模板</span><span id="template-status" role="status" class="muted" data-en="Using the built-in template">当前使用内置模板</span>
+              <button type="button" class="secondary" id="reset-template" data-en="Use built-in template" hidden>使用内置模板</button>
+            </div>
+            <div class="row">
+              <label for="template" class="template-picker"><span class="icon doc" aria-hidden="true"></span><span data-en="Import template…">导入模板…</span><input id="template" type="file" accept=".md,text/markdown" aria-describedby="template-status"></label>
+              <span class="row-hint muted" data-en="Markdown (.md)">Markdown（.md）</span>
+            </div>
           </div>
-        </div>
+          <h2 class="section-title" data-en="AI analysis (optional)">AI 分析（可选）</h2>
+          <div class="group">
+            <label class="row" for="provider"><span data-en="AI provider">AI 服务商</span><select id="provider"><option value="" data-en="Skip AI analysis">跳过 AI 分析</option></select></label>
+            <label class="row" for="model"><span data-en="Model">模型</span><input id="model" type="text" placeholder="使用服务商默认模型" data-en-placeholder="Use the provider’s default model" disabled></label>
+            <label class="row" for="key"><span data-en="API key">API 密钥</span><input id="key" type="password" autocomplete="off" placeholder="仅用于本次任务" data-en-placeholder="Used for this task only" disabled></label>
+          </div>
+          <p id="ai-hint" class="footnote" data-en="When AI is enabled, note titles and excerpts are sent to the selected provider." hidden>选用 AI 时，笔记标题和正文片段会发送给所选服务商。</p>
+        </section>
       </form>
-      <section id="progress-panel" class="progress" aria-labelledby="status" hidden>
-        <progress id="progress" value="0" max="1" aria-label="关键词完成进度" data-en-aria="Keyword completion progress"></progress>
-        <div id="prompt" hidden>
-          <p id="prompt-text"></p>
-          <button type="button" id="proceed" data-en="Continue">继续</button>
-        </div>
-        <ol id="history"></ol>
+
+      <section id="progress-panel" class="page run" aria-labelledby="run-title" hidden>
+        <h1 id="run-title" tabindex="-1" data-en="Collecting notes">正在采集笔记</h1>
+        <p class="live-status"><span class="pulse" aria-hidden="true"></span><span id="run-count"></span></p>
+        <p class="subtitle" id="run-detail"></p>
+        <div class="progress-track"><progress id="progress" value="0" max="1" aria-label="关键词完成进度" data-en-aria="Keyword completion progress"></progress></div>
+        <h2 class="section-title" data-en="Keyword progress">关键词进度</h2>
+        <ul id="run-keywords" class="group keyword-list" aria-live="off"></ul>
+        <div id="running-log"></div>
       </section>
-      <p class="notice" data-en="For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach.">仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。</p>
+
+      <section id="result" class="page result" aria-labelledby="result-title" hidden>
+        <div class="result-hero">
+          <span class="result-symbol"><span id="result-icon" class="icon" aria-hidden="true"></span></span>
+          <div><h1 id="result-title" tabindex="-1"></h1><p id="result-summary" class="subtitle"></p></div>
+          <button type="button" id="collapse-results" class="secondary" data-en="Collapse" hidden>收起</button>
+        </div>
+        <div id="result-file" class="group row file-row" hidden>
+          <span class="file-symbol"><span class="icon doc" aria-hidden="true"></span></span>
+          <div><strong id="result-filename"></strong><p class="muted" data-en="Excel workbook">Excel 工作簿</p></div>
+        </div>
+        <p id="result-warning" class="warning" hidden></p>
+        <section id="keyword-results" aria-labelledby="results-label">
+          <div class="result-tools">
+            <h2 id="results-label" class="section-title" data-en="Keyword results">关键词结果</h2>
+            <label class="keyword-filter" hidden>
+              <span class="icon search" aria-hidden="true"></span><input id="result-search" type="search" aria-label="筛选关键词" data-en-aria="Filter keywords" placeholder="筛选关键词" data-en-placeholder="Filter keywords">
+            </label>
+            <div id="result-filters" class="segments" role="group" aria-label="结果状态" data-en-aria="Result status" hidden>
+              <button type="button" data-filter="all" aria-pressed="true" data-en="All">全部</button>
+              <button type="button" data-filter="failed" aria-pressed="false" data-en="Failed">失败</button>
+              <button type="button" data-filter="complete" aria-pressed="false" data-en="Completed" hidden>完成</button>
+            </div>
+          </div>
+          <div id="result-list" class="group"></div>
+          <p id="result-footnote" class="footnote" hidden data-en="Failed keywords appear first. The remaining keywords are ranked by note count.">失败的关键词置顶，其余按笔记数从多到少排列。</p>
+        </section>
+        <div id="result-log" hidden></div>
+      </section>
     </div>
+
+    <p class="notice" data-en="For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach.">仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。</p>
+    <footer class="task-bar">
+      <p id="status" role="status" data-en="Ready">准备就绪</p>
+      <div class="actions" id="setup-actions">
+        <button type="submit" form="job" id="start-job" class="primary" data-en="Start monitoring">开始监控</button>
+      </div>
+      <div class="actions" id="settings-actions" hidden>
+        <button type="button" id="done-settings" class="secondary" data-en="Done">完成</button>
+      </div>
+      <div class="actions" id="run-actions" hidden>
+        <button type="button" class="secondary" id="show-browser" hidden><span class="icon tray" aria-hidden="true"></span><span data-en="Open collection tab">打开采集标签页</span></button>
+        <button type="button" class="secondary" id="stop" hidden><span class="icon stop" aria-hidden="true"></span><span data-en="Stop task">停止任务</span></button>
+      </div>
+      <div class="actions" id="result-actions" hidden>
+        <button type="button" class="secondary" id="new-from-result" data-en="New monitoring">新建监控</button>
+        <button type="button" class="secondary" id="continue-from-result" data-en="Continue monitoring…">继续监控…</button>
+        <button type="button" class="primary" id="download" data-en="Download Excel" hidden>下载 Excel</button>
+      </div>
+    </footer>
   </main>
+
+  <div id="log-section" class="log-section" hidden>
+    <div class="log-header">
+      <h2 class="section-title" id="log-title" tabindex="-1" data-en="Activity log">执行日志</h2>
+      <button type="button" class="plain small" id="log-end" hidden data-en="Jump to latest">回到最新</button>
+    </div>
+    <ol id="history" class="group history" tabindex="0" aria-labelledby="log-title"></ol>
+  </div>
+
+  <dialog id="prompt" aria-labelledby="prompt-title" aria-describedby="prompt-text">
+    <img src="icons/logo.svg" width="44" height="44" alt="">
+    <h2 id="prompt-title" data-en="Complete the browser action">完成网页操作</h2>
+    <p id="prompt-text"></p>
+    <button type="button" class="plain" id="reopen-browser" data-en="Open collection tab">打开采集标签页</button>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="stop-from-prompt" data-en="End task">结束任务</button>
+      <button type="button" id="proceed" class="primary" data-en="Continue">继续</button>
+    </div>
+  </dialog>
+
+  <dialog id="stop-confirm" aria-labelledby="confirm-title">
+    <h2 id="confirm-title" data-en="Stop the current task?">停止当前任务？</h2>
+    <form method="dialog" class="dialog-actions">
+      <button value="keep" class="secondary" data-en="Keep running" autofocus>继续运行</button>
+      <button value="stop" class="primary" data-en="Stop task">停止任务</button>
+    </form>
+  </dialog>
+
   <script src="exceljs.min.js"></script>
   <script src="jszip.min.js"></script>
   <script type="module" src="app.mjs"></script>
