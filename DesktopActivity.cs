@@ -58,7 +58,8 @@ internal sealed partial class Desktop
         var button = MakeButton(Ui("后台执行", "Run in background"), false);
         button.Image = F1AImage("tray", 15);
         button.TextImageRelation = TextImageRelation.ImageBeforeText;
-        button.Width = English ? 157 : 130;
+        button.Width = English ? 188 : 130;
+        button.AccessibleName = button.Text;
         button.Click += delegate { if (running) HideToTray(); };
         button.Enabled = running;
         return button;
@@ -84,10 +85,11 @@ internal sealed partial class Desktop
         compactView.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         compactView.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
 
-        var mark = new PictureBox { Image = F1AImage("logo", 18), SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Left, Width = 18 };
-        var heading = F1AText(Ui("监控进度", "Monitoring progress"), Ink, 8);
+        var mark = new PictureBox { Image = F1AImage("logo", 18), SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(18, 18) };
+        var heading = F1AText(Ui("监控进度", "Monitoring progress"), Ink);
         heading.Font = HeadingFont(10);
-        var identity = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+        var identity = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, Padding = new Padding(26, 0, 0, 0) };
+        identity.SizeChanged += delegate { mark.Location = new Point(0, (identity.ClientSize.Height - mark.Height) / 2); };
         identity.Controls.Add(heading);
         identity.Controls.Add(mark);
         mark.BringToFront();
@@ -114,6 +116,9 @@ internal sealed partial class Desktop
         background.Dock = stop.Dock = DockStyle.Fill;
         background.Margin = new Padding(0, 4, 4, 4);
         stop.Margin = new Padding(4, 4, 0, 4);
+        if (English) background.SizeChanged += delegate {
+            background.Text = background.Width < 171 ? "Background" : "Run in background";
+        };
         compactView.Controls.Add(background, 0, 5);
         compactView.Controls.Add(stop, 1, 5);
         Controls.Add(compactView);

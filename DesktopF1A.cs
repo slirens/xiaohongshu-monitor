@@ -606,7 +606,8 @@ internal sealed partial class Desktop
             int count = F1AMatched(item);
             string note = item.Outcome == "failed" ? Ui("失败 · 见日志", "Failed · See log")
                 : item.Outcome == null ? Ui("执行中", "Running")
-                    : count >= 0 ? String.Format(Ui("已完成 · {0} 条", "Done · {0} notes"), count) : Ui("已完成", "Done");
+                    : count >= 0 ? String.Format(Ui("已完成 · {0} 条", count == 1 ? "Done · {0} note" : "Done · {0} notes"), count)
+                        : Ui("已完成", "Done");
             args.Item = new ListViewItem(new[] { symbol + item.Name, note }) { UseItemStyleForSubItems = false };
             args.Item.SubItems[1].ForeColor = Muted;
         };

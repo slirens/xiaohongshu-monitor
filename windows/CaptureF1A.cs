@@ -22,6 +22,8 @@ internal static class CaptureF1A
         Application.SetCompatibleTextRenderingDefault(false);
         desktop = Assembly.LoadFrom(args[0]).GetType("Desktop", true);
         using (var window = (Form)Activator.CreateInstance(desktop, true)) {
+            window.MaximizeBox = false;
+            window.FormBorderStyle = FormBorderStyle.FixedSingle;
             window.Show();
             string fixture = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
             File.WriteAllBytes(fixture, new byte[0]);
@@ -30,14 +32,14 @@ internal static class CaptureF1A
                     RestoreSize(window, size);
                     string folder = Path.Combine(args[2], size.Width + "x" + size.Height, args[1]);
                     Directory.CreateDirectory(folder);
-                    Capture(window, folder, fixture);
+                    Capture(window, folder, fixture, size);
                 }
             } finally { File.Delete(fixture); }
         }
         return 0;
     }
 
-    private static void Capture(Form window, string folder, string fixture)
+    private static void Capture(Form window, string folder, string fixture, Size size)
     {
         bool english = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "zh";
         var terms = Field<TextBox>(window, "keyword");
@@ -62,18 +64,26 @@ internal static class CaptureF1A
         Set(window, "running", true);
         Call(window, "ResetF1AProgress");
         Replay(window, english, 2, 1);
+        Call(window, "ObserveF1ATerm", english ? "Starting keyword 2/2: Park" : "开始关键词 2/2：公园", true);
         Call(window, "SetLiveProgress", english ? "Scanning Park · Screen 2" : "扫描「公园」 · 第 2 屏");
         Call(window, "ShowF1APage", Field<Control>(window, "f1aRunPage"), 1);
         CaptureBitmap(window, folder, window.ClientSize.Width == 880 ? "FA-09" : "FA-06");
-        Prompt(window, english, false, folder, "FA-05");
-        Size main = window.ClientSize;
+        Prompt(window, english, false, folder, "FA-05", size);
+        RestoreSize(window, size);
         Call(window, "ShowCompactView");
-        window.ClientSize = new Size(440, 245);
+        Size compactSize = new Size(440, 245);
+        window.ClientSize = compactSize;
+        var compact = Field<Control>(window, "compactView");
+        window.PerformLayout();
+        compact.PerformLayout();
+        compact.Refresh();
+        if (!compact.Visible || Field<Control>(window, "setupView").Visible || compact.Width != compactSize.Width)
+            throw new InvalidOperationException("The compact window did not render at the requested size.");
         CaptureBitmap(window, folder, "FA-10");
-        Prompt(window, english, false, folder, "FA-11");
-        Prompt(window, english, true, folder, "FA-12");
+        Prompt(window, english, false, folder, "FA-11", compactSize);
+        Prompt(window, english, true, folder, "FA-12", compactSize);
         Call(window, "RestoreSetupView");
-        RestoreSize(window, main);
+        RestoreSize(window, size);
 
         Set(window, "running", false);
         Set(window, "report", fixture);
@@ -113,7 +123,7 @@ internal static class CaptureF1A
         }
     }
 
-    private static void Prompt(Form window, bool english, bool stop, string folder, string name)
+    private static void Prompt(Form window, bool english, bool stop, string folder, string name, Size expected)
     {
         string heading = stop ? (english ? "Stop the current task?" : "停止当前任务？") : (english ? "Sign in to Xiaohongshu" : "登录小红书");
         string detail = stop ? "" : (english ? "Complete verification in the browser, then continue." : "请在浏览器完成登录或验证，再返回继续。");
@@ -121,6 +131,7 @@ internal static class CaptureF1A
         string dismiss = stop ? (english ? "Keep running" : "继续运行") : (english ? "End task" : "结束任务");
         using (var dialog = (Form)Call(window, "F1ADialog", heading, detail, accept, dismiss, stop)) {
             dialog.Shown += delegate {
+                if (window.ClientSize != expected) window.ClientSize = expected;
                 using (var bitmap = Draw(window)) {
                     using (var child = Draw(dialog))
                     using (var painter = Graphics.FromImage(bitmap))
@@ -137,7 +148,7 @@ internal static class CaptureF1A
 
     private static Bitmap Draw(Form window)
     {
-        Application.DoEvents();
+        window.Update();
         var bitmap = new Bitmap(window.ClientSize.Width, window.ClientSize.Height);
         using (var painter = Graphics.FromImage(bitmap)) {
             painter.Clear(Color.White);
