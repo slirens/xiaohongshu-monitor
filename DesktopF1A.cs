@@ -32,6 +32,7 @@ internal sealed partial class Desktop
     private TextBox f1aResultFilter;
     private readonly Button[] f1aStateButtons = new Button[3];
     private Label f1aResultGroup;
+    private RowStyle f1aResultGroupRow;
     private int f1aResultSelection;
     private Control f1aResultFilters;
     private List<F1ATerm> f1aRunRows = new List<F1ATerm>(), f1aResultRows = new List<F1ATerm>();
@@ -399,7 +400,7 @@ internal sealed partial class Desktop
         for (int i = 0; i < labels.Length; i++) {
             int selected = i;
             var segment = MakeButton(labels[i], false);
-            segment.Width = English ? (i == 2 ? 98 : 70) : 66;
+            segment.Width = English ? (i == 2 ? 124 : 78) : 82;
             segment.Height = 28;
             segment.Margin = new Padding(2, 0, 0, 0);
             segment.Click += delegate { f1aResultSelection = selected; RefreshF1AResults(); };
@@ -408,18 +409,28 @@ internal sealed partial class Desktop
         }
         var filterWell = new FieldWell(f1aResultFilter) { Padding = new Padding(12, 9, 8, 4) };
         filterWell.SetHint(Caption(Ui("筛选关键词", "Filter keywords"), Tertiary));
-        f1aResultFilters = F1ARow(filterWell, states, 8);
+        var filters = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = GroupFill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty, Padding = new Padding(5, 0, 5, 0) };
+        filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        filters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, English ? 286 : 252));
+        filters.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        filterWell.Dock = DockStyle.Fill;
+        states.Anchor = AnchorStyles.Right;
+        filters.Controls.Add(filterWell, 0, 0);
+        filters.Controls.Add(states, 1, 0);
+        f1aResultFilters = filters;
         F1AAdd(f1aResultPage, f1aResultFilters, 38);
         f1aResults = F1AList(() => f1aResultRows);
         f1aResults.FirstVisibleChanged += F1AUpdateStickyGroup;
-        var resultList = new Panel { Dock = DockStyle.Fill, BackColor = GroupFill, Margin = Padding.Empty };
+        var resultList = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = GroupFill, Margin = Padding.Empty,
+            ColumnCount = 1, RowCount = 2 };
+        f1aResultGroupRow = new RowStyle(SizeType.Absolute, 0);
+        resultList.RowStyles.Add(f1aResultGroupRow);
+        resultList.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         f1aResultGroup = F1AText("", Muted, 13);
-        f1aResultGroup.Dock = DockStyle.Top;
-        f1aResultGroup.Height = 26;
         f1aResultGroup.BackColor = FieldFill;
-        resultList.Controls.Add(f1aResults);
-        resultList.Controls.Add(f1aResultGroup);
-        f1aResultGroup.BringToFront();
+        resultList.Controls.Add(f1aResultGroup, 0, 0);
+        resultList.Controls.Add(f1aResults, 0, 1);
         Round(resultList, 12);
         F1AAdd(f1aResultPage, resultList, 220);
         f1aExpandResult = MakeButton("", false);
@@ -601,6 +612,7 @@ internal sealed partial class Desktop
         }
         f1aResultFilters.Visible = many && f1aExpanded;
         f1aResultGroup.Visible = f1aExpanded;
+        f1aResultGroupRow.Height = f1aExpanded ? 26 : 0;
         if (f1aResultRows.Count == 0) f1aResultGroup.Text = Ui("没有匹配的关键词。", "No matching keywords.");
         f1aResultPage.RowStyles[4].Height = many && f1aExpanded ? 38 : 0;
         f1aExpandResult.Visible = many;
@@ -635,7 +647,8 @@ internal sealed partial class Desktop
         if (f1aResultPage == null || f1aResultPage.RowStyles.Count < 7) return;
         int rows = Math.Max(1, f1aResultRows.Count);
         int listHeight = rows * 36 + 4 + (f1aExpanded ? 26 : 0);
-        int room = Math.Max(80, f1aViewport.ClientSize.Height - (f1aExpanded ? 216 : 180));
+        int fixedRows = (int)f1aResultPage.RowStyles.Cast<RowStyle>().Where((style, index) => index != 5).Sum(style => style.Height);
+        int room = Math.Max(80, f1aViewport.ClientSize.Height - fixedRows - f1aResultPage.Padding.Vertical);
         f1aResultPage.RowStyles[5].Height = Math.Min(listHeight, Math.Min(room, 286));
     }
 
