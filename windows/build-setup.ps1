@@ -7,7 +7,9 @@ param(
     [string]$Version,
     [string]$OutputDirectory,
     [string]$Node = 'node.exe',
-    [string]$InnoCompiler
+    [string]$InnoCompiler,
+    [string]$NpmCache,
+    [switch]$Offline
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +30,7 @@ if (!(Test-Path -LiteralPath $InnoCompiler -PathType Leaf)) {
 $tempRoot = (Get-Item -LiteralPath ([IO.Path]::GetTempPath())).FullName
 $directory = New-Item -ItemType Directory -Path (Join-Path $tempRoot ('xhs-setup-' + [guid]::NewGuid().ToString('N')))
 try {
-    & (Join-Path $repo 'build.ps1') -Node $Node -Architecture $Architecture -OutputDirectory $directory.FullName
+    & (Join-Path $repo 'build.ps1') -Node $Node -Architecture $Architecture -OutputDirectory $directory.FullName -NpmCache $NpmCache -Offline:$Offline
     if (!(Test-Path -LiteralPath (Join-Path $directory.FullName 'runtime/Node-LICENSE.txt'))) {
         throw 'Use the official Node.js distribution with its bundled license.'
     }

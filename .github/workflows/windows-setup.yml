@@ -41,9 +41,15 @@ jobs:
         env:
           XHS_RELEASE_VERSION: ${{ inputs.version }}
           XHS_TARGET_ARCH: ${{ matrix.arch }}
+          XHS_UI_SCREENSHOTS: ${{ runner.temp }}/windows-ui
         run: |
           $installer = Join-Path $env:RUNNER_TEMP "setup/xiaohongshu-monitor-v$env:XHS_RELEASE_VERSION-windows-$env:XHS_TARGET_ARCH-setup.exe"
           ./windows/verify-setup.ps1 -Setup $installer -Architecture $env:XHS_TARGET_ARCH -Version $env:XHS_RELEASE_VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-${{ matrix.arch }}
+          path: ${{ runner.temp }}/windows-ui
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: windows-setup-${{ matrix.arch }}

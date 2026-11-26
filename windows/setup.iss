@@ -25,6 +25,7 @@ ArchitecturesAllowed=x86compatible
 #endif
 OutputBaseFilename=xiaohongshu-monitor-v{#ReleaseVersion}-windows-{#BuildArch}-setup
 LicenseFile={#Payload}\LICENSE
+SetupIconFile=..\design\v2\logo\xhs-monitor-logo.ico
 UninstallDisplayIcon={app}\{#MonitorExe}
 Compression=lzma2
 SolidCompression=yes

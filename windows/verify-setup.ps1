@@ -44,6 +44,16 @@ $env:XHS_AI_KEY = $null
 $env:OPENAI_API_KEY = $null
 Invoke-CheckedProcess $exe @('--verify-ui', 'en') 'English interface smoke test'
 Invoke-CheckedProcess $exe @('--verify-ui', 'zh-CN') 'Simplified Chinese interface smoke test'
+if ($env:XHS_UI_SCREENSHOTS) {
+    $capture = Join-Path $directory.FullName 'capture-f1a.exe'
+    $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+    & $compiler /nologo /target:exe "/platform:$Architecture" /codepage:65001 "/out:$capture" /r:System.Windows.Forms.dll /r:System.Drawing.dll (Join-Path $PSScriptRoot 'CaptureF1A.cs')
+    if ($LASTEXITCODE) { throw 'F+1A screenshot fixture compilation failed.' }
+    foreach ($locale in @('zh-CN', 'en')) {
+        & $capture $exe $locale $env:XHS_UI_SCREENSHOTS
+        if ($LASTEXITCODE) { throw "F+1A screenshots failed for $locale." }
+    }
+}
 Invoke-CheckedProcess $exe @('--verify', ('"{0}"' -f $fixture)) 'Installed desktop smoke test'
 $worker = Join-Path $appFolder 'runtime/monitor.mjs'
 & $node (Join-Path $PSScriptRoot '../tests/verify-warm-worker.cjs') $worker

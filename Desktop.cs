@@ -14,25 +14,21 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyVersion("1.0.8.0")]
-[assembly: AssemblyFileVersion("1.0.8.0")]
-[assembly: AssemblyInformationalVersion("1.0.8")]
+[assembly: AssemblyVersion("1.1.1.0")]
+[assembly: AssemblyFileVersion("1.1.1.0")]
+[assembly: AssemblyInformationalVersion("1.1.1")]
 
 internal sealed partial class Desktop : Form
 {
     private const int KeywordHeight = 50;
-    private const int KeywordRowHeight = 88;
-    private const int SettingsHeight = 171;
-    private const int AdvancedCollapsedHeight = 62;
-    private const int AdvancedExpandedHeight = 378;
-    private static readonly Color Ink = Color.FromArgb(36, 50, 72);
-    private static readonly Color Muted = Color.FromArgb(84, 99, 122);
-    private static readonly Color Accent = Color.FromArgb(35, 91, 194);
-    private static readonly Color Canvas = Color.FromArgb(230, 237, 247);
-    private static readonly Color Surface = Color.FromArgb(250, 252, 254);
-    private static readonly Color FieldFill = Color.FromArgb(243, 247, 251);
-    private static readonly Color FieldEdge = Color.FromArgb(214, 224, 238);
-    private static readonly Color FocusEdge = Color.FromArgb(68, 116, 203);
+    private static readonly Color Ink = Color.FromArgb(30, 26, 27);
+    private static readonly Color Muted = Color.FromArgb(111, 108, 109);
+    private static readonly Color Accent = Color.FromArgb(220, 20, 55);
+    private static readonly Color Canvas = Color.White;
+    private static readonly Color Surface = Color.White;
+    private static readonly Color FieldFill = Color.FromArgb(239, 239, 239);
+    private static readonly Color FieldEdge = Color.FromArgb(232, 232, 232);
+    private static readonly Color FocusEdge = Color.FromArgb(255, 36, 66);
     private static bool English { get { return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "zh"; } }
     private static string Ui(string chinese, string english) { return English ? english : chinese; }
     private readonly TextBox keyword = new TextBox();
@@ -48,7 +44,7 @@ internal sealed partial class Desktop : Form
     private readonly ComboBox order = new ComboBox();
     private readonly ComboBox screens = new ComboBox();
     private readonly Label status = new Label();
-    private readonly ProgressBar progress = new ProgressBar();
+
     private readonly Button run = MakeButton(Ui("开始监控", "Start monitoring"), true);
     private readonly Button open = MakeButton(Ui("打开报告目录", "Open reports"), false);
     private readonly Button importReport = MakeButton(Ui("继续监控…", "Continue monitoring…"), false);
@@ -74,7 +70,7 @@ internal sealed partial class Desktop : Form
     private Label compactProgress;
     private Rectangle setupBounds, browserBounds;
     private Size setupMinimum;
-    private Action showTaskDetails;
+
     private Action refreshReportHeader;
 
     [STAThread]
@@ -114,50 +110,6 @@ internal sealed partial class Desktop : Form
         ForeColor = Ink;
         BackColor = Canvas;
 
-        var host = new Panel { Dock = DockStyle.Fill, Padding = new Padding(18), BackColor = Canvas };
-        var shell = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, ColumnCount = 2, RowCount = 1 };
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 263));
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Round(shell, 22);
-        host.Controls.Add(shell);
-        Controls.Add(host);
-        setupView = host;
-        CreateCompactView();
-        var sidebar = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 1, RowCount = 3,
-            BackColor = Color.FromArgb(228, 239, 250), Padding = new Padding(23, 39, 23, 20) };
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 207));
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 57));
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        shell.Controls.Add(sidebar, 0, 0);
-        using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("cover.png"))
-        using (var cover = Image.FromStream(resource))
-        {
-            var picture = new PictureBox { Image = new Bitmap(cover), SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Fill, Margin = Padding.Empty };
-            Round(picture, 13);
-            sidebar.Controls.Add(picture, 0, 0);
-            InitializeActivity(picture);
-        }
-        var sideTitle = Caption(Ui("小红书舆情监控", "Xiaohongshu Monitor"), Ink);
-        sideTitle.Font = HeadingFont(13);
-        sideTitle.Anchor = AnchorStyles.Left;
-        sidebar.Controls.Add(sideTitle, 0, 1);
-        var usageNotice = new Label {
-            Text = Ui("仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。",
-                "For lawful, non-commercial use only. Automated browsing may trigger platform warnings or restrictions and affect account privileges and reach."),
-            Dock = DockStyle.Fill, Margin = Padding.Empty, ForeColor = Muted,
-            Font = new Font(Font.FontFamily, 8.5f), TextAlign = ContentAlignment.BottomLeft
-        };
-        sidebar.Controls.Add(usageNotice, 0, 2);
-        var page = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, AutoScroll = true,
-            Padding = new Padding(32, 37, 32, 18), Margin = Padding.Empty, RowCount = 6, ColumnCount = 1 };
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 83));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, SettingsHeight));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, AdvancedCollapsedHeight));
-        page.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 69));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
-        shell.Controls.Add(page, 1, 0);
-        var header = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         tray.Icon = Icon ?? SystemIcons.Application;
         tray.Text = Ui("小红书舆情监控", "Xiaohongshu Monitor");
@@ -185,176 +137,22 @@ internal sealed partial class Desktop : Form
         tray.BalloonTipClicked += delegate { RestoreWindow(); };
         FormClosed += delegate { tray.Visible = false; tray.Dispose(); trayMenu.Dispose(); };
         Resize += delegate { if (WindowState == FormWindowState.Minimized) HideToTray(); };
-        var title = Caption(Ui("新建监控任务", "New monitoring task"), Ink);
-        title.Font = HeadingFont(21);
-        title.AutoSize = false;
-        title.AutoEllipsis = true;
-        var subtitle = Caption(Ui("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report."), Muted);
-        subtitle.AutoSize = false;
-        subtitle.AutoEllipsis = true;
-        var resetTask = MakeButton(Ui("新建监控", "New task"), false);
-        resetTask.Width = English ? 87 : 92;
-        resetTask.Visible = false;
-        importReport.Width = English ? 158 : 120;
-        var modes = new FlowLayoutPanel { Dock = DockStyle.Right, Width = importReport.Width, WrapContents = false,
-            FlowDirection = FlowDirection.RightToLeft, Margin = Padding.Empty, Padding = new Padding(0, 1, 0, 0) };
-        importReport.Margin = Padding.Empty;
-        resetTask.Margin = new Padding(0, 0, 7, 0);
-        modes.Controls.Add(importReport);
-        modes.Controls.Add(resetTask);
-        var reportHint = new ToolTip();
-        FormClosed += delegate { reportHint.Dispose(); };
-        latestContinuationReport = LatestReport();
-        Action layoutHeader = delegate {
-            bool continuing = continuationReport.Length != 0;
-            string selected = continuing ? continuationReport : latestContinuationReport;
-            title.Text = continuing ? Ui("继续监控", "Continue monitoring") : Ui("新建监控任务", "New monitoring task");
-            subtitle.Text = selected != null ? (continuing ? Ui("基于报告  ", "Using report  ") : Ui("上次报告  ", "Last report  ")) + Path.GetFileName(selected) :
-                Ui("按关键词和日期采集笔记，导出 Excel 报告。", "Collect notes by keyword and date, then export an Excel report.");
-            subtitle.SetBounds(0, 44, header.ClientSize.Width, Math.Max(23, subtitle.Font.Height * 2 + 2));
-            reportHint.SetToolTip(subtitle, selected != null ? subtitle.Text : "");
-            bool showReset = continuing && !importingReport;
-            resetTask.Visible = showReset;
-            importReport.Width = continuing ? (English ? 127 : 110) : (English ? 158 : 120);
-            modes.Width = importReport.Width + (showReset ? resetTask.Width + resetTask.Margin.Right : 0);
-            title.SetBounds(0, 0, Math.Max(1, header.ClientSize.Width - modes.Width - 8), Math.Max(40, title.Font.Height + 3));
-            importReport.Text = importingReport ? Ui("正在读取…", "Reading…") : continuing
-                ? Ui("更换报告…", "Change report…") : selected != null ? Ui("继续监控", "Continue monitoring") :
-                    Ui("继续监控…", "Continue monitoring…");
-            run.Text = continuing ? Ui("开始续查", "Run follow-up") : Ui("开始监控", "Start monitoring");
-        };
-        refreshReportHeader = layoutHeader;
-        header.Controls.AddRange(new Control[] { title, modes, subtitle });
-        subtitle.BringToFront();
-        header.SizeChanged += delegate { layoutHeader(); };
-        importReport.Click += async delegate { await ImportPreviousReport(layoutHeader); };
-        resetTask.Click += delegate {
-            continuationReport = "";
-            keyword.Clear();
-            DateTime today = DateTime.UtcNow.AddHours(8).Date;
-            start.SetDate(today);
-            end.SetDate(today);
-            status.Text = Ui("●  准备就绪", "●  Ready");
-            layoutHeader();
-            keyword.Focus();
-        };
-        page.Controls.Add(header, 0, 0);
-        layoutHeader();
-
-        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Surface, Margin = Padding.Empty,
-            ColumnCount = 2, RowCount = 2 };
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        settings.Font = new Font(Font.FontFamily, 10.5f);
-        settings.RowStyles.Add(new RowStyle(SizeType.Absolute, KeywordRowHeight));
-        settings.RowStyles.Add(new RowStyle(SizeType.Absolute, 83));
-        page.Controls.Add(settings, 0, 1);
-
-        keyword.AccessibleName = Ui("关键词", "Keywords");
-        keyword.Multiline = true;
-        keyword.WordWrap = true;
-        keyword.AcceptsReturn = true;
-        keywordWell = (Panel)AddStack(settings, Ui("关键词", "Keywords"), keyword, 0, 0, 2);
-        var keywordHint = Caption(Ui("多个关键词用空格分隔，例如：宝山 硚口", "Separate keywords with spaces, e.g. Baoshan Qiaokou"), Muted);
-        ((FieldWell)keywordWell).SetHint(keywordHint);
-        AddStack(settings, Ui("开始日期", "Start date"), start, 0, 1, 1);
-        AddStack(settings, Ui("结束日期", "End date"), end, 1, 1, 1);
-        order.DropDownStyle = ComboBoxStyle.DropDownList;
-        order.Items.AddRange(new object[] { Ui("最新", "Latest"), Ui("综合", "Most relevant") });
-        order.SelectedIndex = 0;
-        screens.DropDownStyle = ComboBoxStyle.DropDown;
-        screens.Items.AddRange(new object[] { Ui("1 屏", "1 screen"), Ui("2 屏", "2 screens"), Ui("3 屏", "3 screens"), Ui("4 屏", "4 screens"), Ui("下拉到底", "Scroll to bottom") });
-        screens.SelectedIndex = 4;
-        screens.AccessibleName = Ui("划屏数量", "Screen count");
-        screens.BackColor = FieldFill;
-        screens.ForeColor = Ink;
-        var advancedToggle = MakeButton(Ui("›   更多设置", "›   More settings"), false);
-        advancedToggle.Dock = DockStyle.Fill;
-        advancedToggle.Margin = new Padding(0, 2, 0, 3);
-        advancedToggle.Padding = new Padding(10, 0, 0, 0);
-        advancedToggle.TextAlign = ContentAlignment.MiddleLeft;
-        advancedToggle.Paint += delegate(object sender, PaintEventArgs args) {
-            string summary = order.Text + "  ·  " + screens.Text;
-            int left = Math.Min(172, advancedToggle.Width / 2);
-            TextRenderer.DrawText(args.Graphics, summary, Font,
-                new Rectangle(left, 0, Math.Max(1, advancedToggle.Width - left - 13), advancedToggle.Height), Muted,
-                TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-        };
-        var advancedCard = Card(1);
-        advancedCard.Margin = new Padding(0, 8, 0, 0);
-        advancedCard.BackColor = Surface;
-        advancedCard.Padding = new Padding(0, 2, 0, 7);
-        advancedCard.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        advancedCard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        advancedCard.Controls.Add(advancedToggle, 0, 0);
-        page.Controls.Add(advancedCard, 0, 2);
-        var advanced = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
-            RowCount = 4, Visible = false, Margin = Padding.Empty, Font = settings.Font };
-        advanced.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        advanced.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        for (int row = 0; row < 3; row++) advanced.RowStyles.Add(new RowStyle(SizeType.Absolute, 77));
-        advanced.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        advancedCard.Controls.Add(advanced, 0, 1);
-        bool adjustingKeyword = false;
-        Action layoutKeyword = delegate {
-            if (adjustingKeyword) return;
-            adjustingKeyword = true;
-            try {
-                ((FieldWell)keywordWell).RefreshAppearance();
-                int lines = keyword.TextLength == 0 ? 1 : keyword.GetLineFromCharIndex(keyword.TextLength - 1) + 1;
-                if (keyword.Text.EndsWith("\n")) lines++;
-                int extra = Math.Max(0, Math.Min(5, lines) - 1) * keyword.Font.Height;
-                var scrollbars = lines > 5 ? ScrollBars.Vertical : ScrollBars.None;
-                if (keyword.ScrollBars != scrollbars) keyword.ScrollBars = scrollbars;
-                ResizeKeywordField(extra, keywordWell, settings, page);
-            } finally { adjustingKeyword = false; }
-        };
-        keyword.TextChanged += delegate { layoutKeyword(); };
-        keyword.SizeChanged += delegate { layoutKeyword(); };
-        AddStack(advanced, Ui("网页排序", "Sort results"), order, 0, 0, 1);
-        AddStack(advanced, Ui("划屏数量（可输入数字）", "Screen count (editable)"), screens, 1, 0, 1);
-        Action refreshAdvanced = delegate {
-            advancedToggle.Text = advanced.Visible ? Ui("⌄   更多设置", "⌄   More settings") : Ui("›   更多设置", "›   More settings");
-            advancedToggle.AccessibleDescription = order.Text + " · " + screens.Text;
-            advancedToggle.Invalidate();
-        };
-        order.SelectedIndexChanged += delegate { refreshAdvanced(); };
-        screens.TextChanged += delegate { refreshAdvanced(); };
-        advancedToggle.Click += delegate {
-            bool expanded = !advanced.Visible;
-            advanced.Visible = expanded;
-            page.RowStyles[2].Height = expanded ? AdvancedExpandedHeight : AdvancedCollapsedHeight;
-            page.AutoScrollMinSize = expanded ? new Size(0, 70 + (int)page.RowStyles[1].Height + AdvancedExpandedHeight + 128) : Size.Empty;
-            refreshAdvanced();
-        };
-
-        var input = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        input.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        input.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
-        input.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        BuildF1AView();
         var templates = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList,
-            Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0, 0, 8, 0),
             AccessibleName = Ui("报告模板选择", "Report template selection") };
         templates.Items.Add(Ui("使用内置模板", "Use built-in template"));
         templates.SelectedIndex = 0;
-        var browse = MakeButton(Ui("导入模板…", "Import…"), false);
-        browse.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        browse.Margin = Padding.Empty;
-        browse.Height = templates.PreferredHeight;
-        templates.SizeChanged += delegate {
-            if (browse.Height != templates.Height) browse.Height = templates.Height;
-        };
+        var browse = MakeButton(Ui("导入模板…", "Import template…"), false);
         var tooltip = new ToolTip();
+        FormClosed += delegate { tooltip.Dispose(); };
         string library = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "XhsMonitor", "templates");
         templates.SelectedIndexChanged += delegate {
             reportTemplate = templates.SelectedIndex > 0 ? Path.Combine(library, templates.Text + ".md") : "";
         };
-        tooltip.SetToolTip(templates, Ui("选择内置规则或已导入的 Markdown 模板。开始监控前校验分析规则、工作表与列。", "Select built-in rules or an imported Markdown template. Report rules, sheets, and columns are validated before monitoring."));
         try {
-            if (Directory.Exists(library)) {
+            if (Directory.Exists(library))
                 foreach (string path in Directory.GetFiles(library, "*.md").OrderBy(Path.GetFileNameWithoutExtension))
                     templates.Items.Add(Path.GetFileNameWithoutExtension(path));
-            }
         } catch (IOException error) {
             AppendLog(Ui("无法读取模板库：", "Could not read the template library: ") + error.Message);
         } catch (UnauthorizedAccessException error) {
@@ -364,7 +162,7 @@ internal sealed partial class Desktop : Form
             using (var picker = new OpenFileDialog { Filter = Ui("Markdown 模板|*.md", "Markdown templates|*.md"), CheckFileExists = true, Multiselect = true }) {
                 if (picker.ShowDialog(this) != DialogResult.OK) return;
                 string selected = null;
-                var errors = new System.Collections.Generic.List<string>();
+                var errors = new List<string>();
                 foreach (string path in picker.FileNames) {
                     try {
                         string name = ImportTemplate(path, library);
@@ -378,9 +176,6 @@ internal sealed partial class Desktop : Form
                 if (errors.Count > 0) MessageBox.Show(this, String.Join(Environment.NewLine, errors), Ui("部分模板无法导入", "Some templates could not be imported"));
             }
         };
-        input.Controls.Add(templates, 0, 0);
-        input.Controls.Add(browse, 1, 0);
-        AddStack(advanced, Ui("报告生成模板", "Report template"), input, 0, 1, 1);
         tooltip.SetToolTip(screens, Ui("默认下拉到底。也可直接输入正整数，例如 3，包含首屏。", "Scroll to the bottom by default, or enter a positive number including the first screen."));
         tooltip.SetToolTip(start, Ui("北京时间，包含开始当天。", "China time. The start date is included."));
         tooltip.SetToolTip(end, Ui("北京时间，包含结束当天。", "China time. The end date is included."));
@@ -391,10 +186,6 @@ internal sealed partial class Desktop : Form
         aiProvider.DropDownStyle = ComboBoxStyle.DropDownList;
         aiProvider.Items.AddRange(new object[] { "OpenAI", "Claude", "Gemini", "DeepSeek", "Kimi", "GLM", "Qwen" });
         aiProvider.SelectedIndex = 0;
-        AddStack(advanced, Ui("AI 服务商", "AI provider"), aiProvider, 1, 1, 1);
-        AddStack(advanced, Ui("模型（留空使用默认）", "Model (optional)"), aiModel, 0, 2, 1);
-        AddStack(advanced, Ui("API 密钥（可选）", "API key (optional)"), secret, 1, 2, 1);
-        AddStack(advanced, Ui("Qwen 接口地址（可选）", "Qwen endpoint (optional)"), qwenEndpoint, 0, 3, 2);
         qwenEndpoint.Enabled = false;
         tooltip.SetToolTip(qwenEndpoint, Ui("使用阿里云百炼控制台的 OpenAI 兼容接口地址。留空使用中国内地旧版地址。", "Use the OpenAI-compatible endpoint from the Model Studio console. Leave blank for the default mainland China endpoint."));
         aiProvider.SelectedIndexChanged += delegate {
@@ -403,90 +194,16 @@ internal sealed partial class Desktop : Form
             qwenEndpoint.Enabled = aiProvider.Text == "Qwen";
         };
 
-        var results = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Margin = Padding.Empty,
-            Padding = new Padding(0, 12, 0, 5) };
-        results.Paint += delegate(object sender, PaintEventArgs args) {
-            using (var line = new Pen(FieldEdge)) args.Graphics.DrawLine(line, 0, 1, results.Width, 1);
-        };
-        page.Controls.Add(results, 0, 4);
-        status.Text = Ui("●  准备就绪", "●  Ready");
-        status.ForeColor = Muted;
-        status.Dock = DockStyle.Fill;
-        status.TextAlign = ContentAlignment.MiddleLeft;
-        status.Margin = Padding.Empty;
-        status.AutoEllipsis = true;
-        var statusRow = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 3, RowCount = 1 };
-        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, English ? 101 : 89));
-        statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, English ? 276 : 257));
-        statusRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var detailToggle = MakeButton(Ui("任务详情", "Task details"), false);
-        detailToggle.Dock = DockStyle.Fill;
-        detailToggle.Margin = Padding.Empty;
-        detailToggle.FlatAppearance.BorderSize = 0;
-        detailToggle.ForeColor = Accent;
-        detailToggle.BackColor = Surface;
-        advancedToggle.BackColor = Surface;
-        statusRow.Controls.Add(status, 0, 0);
-        statusRow.Controls.Add(detailToggle, 1, 0);
-        results.Controls.Add(statusRow);
-        var details = Card(1);
-        details.Visible = false;
-        int diagnosticRow = 0;
-#if DISTRIBUTION
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        diagnosticRow = 1;
-#endif
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
-        page.Controls.Add(details, 0, 5);
-        Action<bool> toggleDetails = delegate(bool visible) {
-            if (visible && advanced.Visible) advancedToggle.PerformClick();
-            page.RowStyles[3].SizeType = visible ? SizeType.Absolute : SizeType.Percent;
-            page.RowStyles[3].Height = visible ? 12 : 100;
-            page.RowStyles[5].SizeType = visible ? SizeType.Percent : SizeType.Absolute;
-            page.RowStyles[5].Height = visible ? 100 : 0;
-            details.Visible = visible;
-            detailToggle.Text = visible ? Ui("收起任务详情", "Hide details") : Ui("任务详情", "Task details");
-        };
-        showTaskDetails = delegate { toggleDetails(true); };
-        detailToggle.Click += delegate { toggleDetails(!details.Visible); };
-#if DISTRIBUTION
-        InstallDiagnosticButton(details);
-#endif
+        BuildF1ASettings(templates, browse);
         latestDiagnosticsFile = TaskDiagnostics.Latest(diagnosticsFolder);
-        exportDiagnostics.Anchor = AnchorStyles.Right;
-        exportDiagnostics.Width = English ? 160 : 144;
-        exportDiagnostics.Height = 32;
-        exportDiagnostics.Margin = new Padding(0, 0, 0, 4);
         exportDiagnostics.Enabled = latestDiagnosticsFile != null;
         tooltip.SetToolTip(exportDiagnostics, Ui("将最近一次任务的诊断保存为本地文件。", "Save diagnostics from the latest run as a local file."));
         exportDiagnostics.Click += delegate { ExportDiagnostics(); };
-        details.Controls.Add(exportDiagnostics, 0, diagnosticRow);
-        log.Dock = DockStyle.Fill;
-        log.Multiline = true;
-        log.ReadOnly = true;
-        log.ScrollBars = ScrollBars.Vertical;
-        log.BackColor = Canvas;
-        log.BorderStyle = BorderStyle.FixedSingle;
-        log.AccessibleName = Ui("执行进度", "Task progress");
-        if (log.TextLength == 0) log.Text = Ui("运行后可在这里查看采集与导出进度。", "Collection and export progress will appear here.");
-        details.Controls.Add(log, 0, diagnosticRow + 1);
-        progress.Dock = DockStyle.Fill;
-        progress.Visible = false;
-        details.Controls.Add(progress, 0, diagnosticRow + 2);
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-        actions.Margin = Padding.Empty;
-        run.Width = English ? 139 : 118;
-        open.Width = English ? 121 : 125;
-        run.Margin = new Padding(8, 4, 0, 0);
-        open.Margin = new Padding(0, 4, 0, 0);
         open.Click += delegate { OpenReportFolder(); };
         run.Click += async delegate { await StartReport(); };
-        actions.Controls.Add(run);
-        actions.Controls.Add(open);
-        statusRow.Controls.Add(actions, 2, 0);
+        refreshReportHeader();
+        RefreshF1AValidation();
+
         FormClosing += delegate(object sender, FormClosingEventArgs args) {
             if (running) {
                 args.Cancel = true;
@@ -625,14 +342,15 @@ internal sealed partial class Desktop : Form
             return;
         }
         running = true;
+        ResetF1AProgress();
         activityTimer.Start();
 #if DISTRIBUTION
         BeginDiagnostic();
 #endif
         cancelRequested = false;
         run.Enabled = false;
-        progress.Visible = true;
-        progress.Style = ProgressBarStyle.Marquee;
+
+
         log.Clear();
         report = null;
         SetLiveProgress(Ui("正在启动浏览器…", "Starting the browser…"));
@@ -665,6 +383,7 @@ internal sealed partial class Desktop : Form
                 while ((message = await worker.StandardOutput.ReadLineAsync()) != null) {
                     if (message.StartsWith(TaskDiagnostics.WorkerPrefix, StringComparison.Ordinal)) {
                         if (diagnostics != null) diagnostics.WorkerEvent(message.Substring(TaskDiagnostics.WorkerPrefix.Length));
+                        ObserveF1ACount(message.Substring(TaskDiagnostics.WorkerPrefix.Length));
                     } else if (message.StartsWith("UI_ASK ")) {
                         if (cancelRequested) continue;
                         string answer = PromptUser(json.Deserialize<string>(message.Substring(7)));
@@ -674,9 +393,11 @@ internal sealed partial class Desktop : Form
                     } else if (message.StartsWith("UI_ANALYSIS_WARNING ")) {
                         analysisWarning = message.Substring("UI_ANALYSIS_WARNING ".Length);
                         AppendLog(analysisWarning);
+                        f1aAnalysisWarning = analysisWarning;
                     } else if (message.StartsWith("UI_PROGRESS ")) {
                         string batchProgress = message.Substring("UI_PROGRESS ".Length);
                         lastProgress = batchProgress;
+                        ObserveF1ATerm(batchProgress, false);
                         SetLiveProgress(batchProgress);
                         AppendLog(batchProgress);
                         // The final batch notification replaces the last item notification.
@@ -687,6 +408,7 @@ internal sealed partial class Desktop : Form
                         string prefix = Ui("已生成 Excel：", "Excel report: ");
                         if (message.StartsWith(prefix)) report = message.Substring(prefix.Length);
                         AppendLog(message);
+                        ObserveF1ATerm(message, true);
                         if (message.StartsWith(Ui("扫描「", "Scanning ")) || message.StartsWith(Ui("读笔记 ", "Reading notes ")) ||
                             message.StartsWith(Ui("开始关键词 ", "Starting keyword ")) || message.StartsWith(Ui("正在生成 Excel", "Generating Excel")) ||
                             message.StartsWith(Ui("分析 ", "Analyzing ")) || message.StartsWith(Ui("正在打开", "Opening ")))
@@ -733,14 +455,14 @@ internal sealed partial class Desktop : Form
 #if DISTRIBUTION
             run.Enabled = licenseAllowed;
 #endif
-            progress.Visible = false;
+
             if (File.Exists(report)) {
                 latestContinuationReport = report;
                 if (continuationReport.Length != 0) continuationReport = report;
                 refreshReportHeader();
             }
             RestoreSetupView();
-            if (!cancelRequested && !File.Exists(report)) showTaskDetails();
+            if (!exitRequested) RenderF1AResult(diagnosticOutcome);
             if (exitRequested) Close();
             else PrepareBrowserWorker();
         }
@@ -890,21 +612,10 @@ internal sealed partial class Desktop : Form
             Ui("等待网页操作", "Waiting for browser input"));
         AppendLog(message);
         string title = signIn ? Ui("登录小红书", "Sign in to Xiaohongshu") : Ui("继续网页操作", "Continue in the browser");
-        using (var dialog = new Form { Text = title, Width = 550, Height = 257, StartPosition = FormStartPosition.CenterParent, Font = Font, MaximizeBox = false, MinimizeBox = false, BackColor = Surface }) {
-            var caption = new Label { Text = message, Left = 22, Top = 18, Width = 485, Height = 84 };
-            bool browserChoice = message.StartsWith("后台采集需要打开浏览器") || message.StartsWith("Background collection needs a browser window");
-            var ok = MakeButton(browserChoice ? Ui("打开浏览器", "Open browser") : Ui("继续", "Continue"), true);
-            ok.SetBounds(390, 158, 116, 34);
-            ok.DialogResult = DialogResult.OK;
-            dialog.Controls.AddRange(new Control[] { caption, ok });
-            dialog.AcceptButton = ok;
-            if (browserChoice || signIn) {
-                var stop = MakeButton(signIn ? Ui("结束任务", "End task") : Ui("结束", "End"), false);
-                stop.SetBounds(258, 158, 122, 34);
-                stop.DialogResult = DialogResult.Cancel;
-                dialog.Controls.Add(stop);
-                dialog.CancelButton = stop;
-            }
+        bool browserChoice = message.StartsWith("后台采集需要打开浏览器") || message.StartsWith("Background collection needs a browser window");
+        string accept = browserChoice ? Ui("打开浏览器", "Open browser") : Ui("继续", "Continue");
+        string dismiss = signIn ? Ui("结束任务", "End task") : browserChoice ? Ui("结束", "End") : null;
+        using (var dialog = F1ADialog(title, message, accept, dismiss, false)) {
             DialogResult result = ShowPrompt(dialog);
             if (signIn && result != DialogResult.OK) {
                 if (!cancelRequested) StopWorker(false);
@@ -919,8 +630,17 @@ internal sealed partial class Desktop : Form
     {
         pendingPrompt = dialog;
         UpdateActivity();
-        try { return dialog.ShowDialog(this); }
-        finally { pendingPrompt = null; }
+        try {
+            if (!Visible) return dialog.ShowDialog(this);
+            using (var shade = new F1AShade(RectangleToScreen(ClientRectangle))) {
+                shade.Show(this);
+                try { return dialog.ShowDialog(shade); }
+                finally { shade.Close(); }
+            }
+        } finally {
+            pendingPrompt = null;
+            UpdateActivity();
+        }
     }
 
     private void ConfirmStop(bool exit)
@@ -934,7 +654,9 @@ internal sealed partial class Desktop : Form
             return;
         }
         string message = exit ? Ui("任务仍在运行。停止任务并退出程序？", "Stop the running task and quit?") : Ui("停止当前任务？", "Stop the current task?");
-        if (MessageBox.Show(message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        using (var dialog = F1ADialog(message, "", Ui("停止任务", "Stop task"), Ui("继续运行", "Keep running"), true)) {
+            if (ShowPrompt(dialog) != DialogResult.OK) return;
+        }
         StopWorker(exit);
     }
 
@@ -1005,29 +727,6 @@ internal sealed partial class Desktop : Form
         catch (InvalidOperationException) { }
     }
 
-    private void CreateCompactView()
-    {
-        compactView = Card(1);
-        compactView.Visible = false;
-        compactView.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        compactView.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        compactView.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
-        var title = Caption(Ui("监控进度", "Monitoring progress"), Ink);
-        title.Font = HeadingFont(17);
-        compactView.Controls.Add(title, 0, 0);
-        compactProgress = new Label { Dock = DockStyle.Fill, ForeColor = Ink, AutoEllipsis = true };
-        compactView.Controls.Add(compactProgress, 0, 1);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-        var background = MakeButton(Ui("后台执行", "Run in background"), true);
-        var stop = MakeButton(Ui("停止任务", "Stop task"), false);
-        background.Click += delegate { HideToTray(); };
-        stop.Click += delegate { ConfirmStop(false); };
-        buttons.Controls.Add(background);
-        buttons.Controls.Add(stop);
-        compactView.Controls.Add(buttons, 0, 2);
-        Controls.Add(compactView);
-    }
-
     private void ShowCompactView()
     {
         setupBounds = Bounds;
@@ -1037,6 +736,7 @@ internal sealed partial class Desktop : Form
         browserBounds = new Rectangle(area.Left, area.Top, Math.Max(320, area.Width - width - 8), area.Height);
         WindowState = FormWindowState.Normal;
         MinimumSize = new Size(290, 180);
+        ShowF1APage(f1aRunPage, 1);
         Bounds = new Rectangle(area.Right - width, area.Top, width, Math.Min(285, area.Height));
         setupView.Visible = false;
         compactView.Visible = true;
@@ -1056,6 +756,7 @@ internal sealed partial class Desktop : Form
     private void SetLiveProgress(string message)
     {
         status.Text = message;
+        if (f1aRunMessage != null) f1aRunMessage.Text = message;
         compactProgress.Text = message;
         tray.Text = message.Length > 62 ? message.Substring(0, 62) + "…" : message;
     }
@@ -1272,9 +973,6 @@ internal sealed partial class Desktop : Form
         if (Width >= initialSize.Width || browserBounds.Right > Left || Height > 285) return 7;
         RestoreSetupView();
         if (Size != initialSize) return 8;
-        using (var moved = CreatePawFrame(activityCover, 1))
-            if (!Enumerable.Range(0, moved.Width * moved.Height).Where(i => i % 7 == 0)
-                .Any(i => moved.GetPixel(i % moved.Width, i / moved.Width) != activityCover.GetPixel(i % moved.Width, i / moved.Width))) return 5;
         if (screens.Text != Ui("下拉到底", "Scroll to bottom")) return 2;
         screens.Text = "3";
         if (!Object.Equals(ParseScreenCount(), 3)) return 6;
@@ -1319,13 +1017,14 @@ internal sealed partial class Desktop : Form
         return new Font(Font.FontFamily, size, FontStyle.Regular);
     }
     private static Button MakeButton(string text, bool primary) {
-        var button = new Button { Text = text, Width = 130, Height = 38, FlatStyle = FlatStyle.Flat,
-            BackColor = primary ? Accent : Surface, ForeColor = primary ? Color.White : Ink };
-        button.FlatAppearance.BorderSize = primary ? 0 : 1;
+        var button = new Button { Text = text, Width = 130, Height = 34, FlatStyle = FlatStyle.Flat,
+            BackColor = primary ? Accent : FieldFill, ForeColor = primary ? Color.White : Ink };
+        button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.BorderColor = FieldEdge;
-        button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(47, 106, 206) : FieldFill;
-        button.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(30, 78, 171) : FieldEdge;
-        Round(button, 18);
+        button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(226, 30, 64) : Color.FromArgb(246, 246, 246);
+        button.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(184, 17, 46) : FieldEdge;
+        if (primary) button.EnabledChanged += delegate { button.BackColor = button.Enabled ? Accent : FieldFill; };
+        Round(button, 9);
         return button;
     }
     private static TableLayoutPanel Card(int columns) {
@@ -1358,40 +1057,20 @@ internal sealed partial class Desktop : Form
         control.Resize += delegate { apply(); };
         apply();
     }
-    private static void ResizeKeywordField(int extra, Panel well, TableLayoutPanel settings, TableLayoutPanel page) {
-        if (well.Height != KeywordHeight + extra) well.Height = KeywordHeight + extra;
-        if (settings.RowStyles[0].Height != KeywordRowHeight + extra) settings.RowStyles[0].Height = KeywordRowHeight + extra;
-        int height = SettingsHeight + extra;
-        if (page.RowStyles[1].Height != height) page.RowStyles[1].Height = height;
-    }
-    private static Control AddStack(TableLayoutPanel grid, string name, Control control, int column, int row, int span) {
-        var margin = span == 2 ? Padding.Empty : column == 0 ? new Padding(0, 0, 7, 0) : new Padding(7, 0, 0, 0);
-        var field = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = margin, RowCount = 2, ColumnCount = 1 };
-        field.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
-        field.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var label = Caption(name, Ink);
-        label.Anchor = AnchorStyles.Left;
-        label.Margin = Padding.Empty;
-        if (string.IsNullOrEmpty(control.AccessibleName)) control.AccessibleName = name;
-        control.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        control.Margin = new Padding(0, 2, 0, 0);
-        Control input = control;
-        if (control is TableLayoutPanel) {
-            control.Height = 34;
-        }
-        if (control is TextBox) input = new FieldWell((TextBox)control);
-        field.Controls.Add(label, 0, 0);
-        field.Controls.Add(input, 0, 1);
-        grid.Controls.Add(field, column, row);
-        grid.SetColumnSpan(field, span);
-        return input;
-    }
-
     private class FieldWell : Panel
     {
         protected readonly TextBox Editor;
         private Label hint;
         private Color fill = FieldFill;
+        private bool error;
+        internal bool HasError {
+            get { return error; }
+            set { if (error != value) { error = value; Invalidate(); } }
+        }
+        internal event EventHandler ValueChanged {
+            add { Editor.TextChanged += value; }
+            remove { Editor.TextChanged -= value; }
+        }
 
         internal FieldWell(TextBox editor)
         {
@@ -1438,7 +1117,7 @@ internal sealed partial class Desktop : Form
 
         internal void RefreshAppearance()
         {
-            fill = ContainsFocus || Hovered ? Color.White : FieldFill;
+            fill = ContainsFocus || Hovered ? Color.White : BackColor == GroupFill ? GroupFill : FieldFill;
             if (Editor.BackColor != fill) Editor.BackColor = fill;
             if (hint != null) {
                 hint.BackColor = fill;
@@ -1464,8 +1143,8 @@ internal sealed partial class Desktop : Form
             args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (var path = RoundedPath(new RectangleF(2, 2, Width - 5, Height - 5), 10))
             using (var brush = new SolidBrush(fill))
-            using (var border = new Pen(ContainsFocus ? FocusEdge : Hovered ? Color.FromArgb(147, 173, 208) : FieldEdge)) {
-                if (ContainsFocus) using (var halo = new Pen(Color.FromArgb(33, FocusEdge), 4)) args.Graphics.DrawPath(halo, path);
+            using (var border = new Pen(error ? Accent : ContainsFocus ? FocusEdge : Hovered ? Muted : FieldEdge)) {
+                if (ContainsFocus && !error) using (var halo = new Pen(Color.FromArgb(41, FocusEdge), 3)) args.Graphics.DrawPath(halo, path);
                 args.Graphics.FillPath(brush, path);
                 args.Graphics.DrawPath(border, path);
             }
@@ -1476,8 +1155,9 @@ internal sealed partial class Desktop : Form
     {
         internal DateField() : base(new TextBox { MaxLength = 10 })
         {
-            Height = 46;
-            Padding = new Padding(14, 12, 43, 7);
+            Height = 37;
+            BackColor = GroupFill;
+            Padding = new Padding(14, 9, 43, 7);
             Editor.Text = DateText(DateTime.UtcNow.AddHours(8).Date);
             var calendarButton = new Button { Size = new Size(25, 25), FlatStyle = FlatStyle.Flat,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right, Cursor = Cursors.Hand, BackColor = Color.Transparent,

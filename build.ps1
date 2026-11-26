@@ -46,12 +46,17 @@ if (Test-Path -LiteralPath $nodeLicense) {
 }
 $exe = Join-Path $destination "小红书舆情监控v1.exe"
 $worker = Join-Path $source "monitor.mjs"
-$cover = Join-Path $source "cover.png"
-$icon = Join-Path $source "cover.ico"
+$logoFolder = Join-Path $source "design/v2/logo"
+$icon = Join-Path $logoFolder "xhs-monitor-logo.ico"
+$logo = Join-Path $logoFolder "xhs-monitor-logo-32.png"
+$glyphs = Get-ChildItem -LiteralPath (Join-Path $source "design/v2/icons/png") -Filter "*.png"
 $compilerArgs = @("/nologo", "/target:winexe", "/platform:$Architecture", "/codepage:65001", "/out:$exe",
     "/r:System.Windows.Forms.dll", "/r:System.Drawing.dll", "/r:System.Web.Extensions.dll",
-    "/win32icon:$icon", "/resource:$worker,monitor.mjs", "/resource:$cover,cover.png",
-    (Join-Path $source "Desktop.cs"), (Join-Path $source "DesktopActivity.cs"))
+    "/win32icon:$icon", "/resource:$worker,monitor.mjs", "/resource:$logo,f1a.logo.png",
+    (Join-Path $source "Desktop.cs"), (Join-Path $source "DesktopActivity.cs"), (Join-Path $source "DesktopF1A.cs"))
+foreach ($glyph in $glyphs) {
+    $compilerArgs += "/resource:$($glyph.FullName),f1a.$($glyph.Name)"
+}
 & $compiler @compilerArgs
 if ($LASTEXITCODE -ne 0) { throw "C# compilation failed: $LASTEXITCODE" }
 if ($destination -ne $source) {
