@@ -3,7 +3,7 @@ name = "xhs-tauri-macos-probe"
 version = "0.1.0"
 edition = "2021"
 description = "Isolated XHS F prototype WKWebView verification"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 
 [build-dependencies]
 tauri-build = "=2.7.6"
