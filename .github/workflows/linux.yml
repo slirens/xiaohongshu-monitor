@@ -62,6 +62,20 @@ jobs:
           printf '%s\n' '[{"title":"测试笔记","body":"宝山 硚口 桌面报告测试","date":"2026-11-23","url":"https://www.xiaohongshu.com/explore/0123456789abcdef01234567"}]' > "$fixture"
           LC_ALL=C.UTF-8 xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state-en"
           LC_ALL=zh_CN.UTF-8 xvfb-run -a xiaohongshu-monitor --verify "$fixture" "$RUNNER_TEMP/ui-state-zh"
+      - name: Capture native F+1A interface states
+        run: |
+          report=$(find "$RUNNER_TEMP/ui-state-en/reports" -maxdepth 1 -name '*.xlsx' -print -quit)
+          test -n "$report"
+          for language in en zh; do
+            if [ "$language" = zh ]; then locale=zh_CN.UTF-8; else locale=C.UTF-8; fi
+            LC_ALL="$locale" xvfb-run -a python3 linux/verify-ui.py --app-root /opt/xiaohongshu-monitor \
+              --report "$report" --screenshots "$RUNNER_TEMP/linux-ui/$language"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-ui-${{ matrix.os }}
+          path: ${{ runner.temp }}/linux-ui
+          if-no-files-found: error
       - name: Exercise real Chrome against local search and login fixtures
         run: xvfb-run -a /opt/xiaohongshu-monitor/runtime/node linux/verify-browser.cjs /opt/xiaohongshu-monitor
       - name: Uninstall and verify clean removal
