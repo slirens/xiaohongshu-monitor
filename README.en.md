@@ -19,6 +19,8 @@ The Windows edition requires Windows 10 or later and supports Microsoft Edge, Go
 
 The F+1A interface uses red, white, and ink. Task setup, monitoring, and export results are shown as three steps, with advanced options on a separate screen. The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
 
+![F+1A Windows task setup](design/v2/screenshots/windows/1080x660/en/FA-01.png)
+
 [View the F+1A design reference](design/v2/reference/F1A-苹果基准-完整版.png)
 
 The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
