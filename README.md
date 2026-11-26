@@ -1,5 +1,7 @@
 # 小红书舆情监控
 
+<img src="design/v2/logo/xhs-monitor-logo-128.png" width="56" height="56" alt="小红书舆情监控">
+
 简体中文 · [English](README.en.md)
 
 ## 使用范围与平台风险
@@ -14,20 +16,22 @@
 
 | 系统 | 下载 | 发布说明 |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x86-setup.exe) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-x86_64.dmg) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-linux-amd64.deb) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-harmonyos-browser.zip) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
 
 Windows 版要求 Windows 10 或更新版本，支持 Microsoft Edge、Google Chrome 和 360 系列浏览器的 Chromium 极速模式。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
-界面采用浅雾蓝配色，并按系统显示语言自动选择简体中文或英文。鸿蒙电脑扩展跟随华为浏览器的界面语言。
+F+1A 使用红、白和墨色，以「设置任务 → 执行监控 → 导出结果」呈现工作流程。更多设置放在独立页面。界面按系统显示语言选择简体中文或英文，华为浏览器扩展跟随浏览器语言。
+
+[查看 F+1A 设计参考图](design/v2/reference/F1A-苹果基准-完整版.png)
 
 Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名，未经过 Apple 公证。首次打开时，系统可能提示安全确认。
 
 ## 内置舆情分析框架
 
-[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [查看模板源码](报告生成模板.md)
+[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) · [查看模板源码](报告生成模板.md)
 
 | 层级 | 内置分析框架 |
 | --- | --- |
@@ -50,7 +54,7 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 
 ### Linux
 
-在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.0.8-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
+在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.1.1-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
 
 如果系统里已安装版本号更高的旧版，APT 会提示确认降级。
 

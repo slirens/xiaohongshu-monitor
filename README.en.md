@@ -1,5 +1,7 @@
 # Xiaohongshu Monitor
 
+<img src="design/v2/logo/xhs-monitor-logo-128.png" width="56" height="56" alt="Xiaohongshu Monitor">
+
 [简体中文](README.md) · English
 
 A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWEI Browser on HarmonyOS PCs. It collects Xiaohongshu notes by keyword and publication date and exports Excel reports using Markdown templates. It supports OpenAI, Claude, Gemini, DeepSeek, Kimi, GLM, and Qwen.
@@ -8,20 +10,22 @@ A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWE
 
 | Platform | Downloads | Release notes |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x86-setup.exe) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-x86_64.dmg) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-linux-amd64.deb) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
-| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-harmonyos-browser.zip) | [v1.0.8](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.0.8) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
 
 The Windows edition requires Windows 10 or later and supports Microsoft Edge, Google Chrome, and the Chromium engine in 360 browsers. The macOS edition requires macOS 14 or later and uses Safari.
 
-The pale-blue interface follows the system display language. It uses Simplified Chinese for Chinese locales and English otherwise. The HarmonyOS extension follows your browser interface language.
+The F+1A interface uses red, white, and ink. Task setup, monitoring, and export results are shown as three steps, with advanced options on a separate screen. The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
+
+[View the F+1A design reference](design/v2/reference/F1A-苹果基准-完整版.png)
 
 The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
 
 ## Built-in analysis framework
 
-[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) · [View source](报告生成模板.md)
+[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) · [View source](报告生成模板.md)
 
 | Level | Built-in framework |
 | --- | --- |
@@ -50,7 +54,7 @@ Desktop reports are written to the local `reports` folder. The browser extension
 
 ### Linux
 
-On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.0.8-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
+On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.1.1-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
 
 APT will ask for downgrade confirmation if a previously released package with a higher version number is installed.
 

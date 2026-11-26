@@ -1,19 +1,22 @@
 ## 更新 · What's new
 
-- 「继续监控」可载入最近报告或导入 Excel，恢复已有关键词，并将本轮发现追加到同一份历史记录。
-- 内置模板为总结、总表和日期分表加入点赞、收藏和评论变化。表格保留两次实测数据、增减数和涨幅，开启 AI 时按实际变化分析。
-- **Continue monitoring** restores keywords from your latest report or an imported Excel workbook and adds new findings to its history.
-- The built-in template shows changes in likes, saves, and comments in the summary, overview, and publication-date sheets. When enabled, AI analysis uses the recorded changes.
+- F+1A 界面采用红、白和墨色，按设置任务、执行监控、导出结果三个阶段组织操作。
+- 更新应用图标，优化继续监控的报告选择、更多设置、任务状态和紧凑进度窗。
+- 采集、续查记录及 Excel 报告使用现有的检索、分析和导出规则。
+
+- The new F+1A interface uses red, white, and ink and presents task setup, monitoring, and export results as three steps.
+- The new app icon accompanies updates to report selection, advanced settings, and the compact progress window.
+- Collection, recurring monitoring, and Excel export use the existing search, analysis, and reporting rules.
 
 ## 下载 · Download
 
 | 类别 · Category | 下载项 · Download |
 | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-windows-x86-setup.exe) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-macos-x86_64.dmg) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-linux-amd64.deb) |
-| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/xiaohongshu-monitor-v1.0.8-harmonyos-browser.zip) |
-| 舆情分析模板 · Analysis template | [Markdown](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.0.8/analysis-template.md) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) |
+| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) |
+| 舆情分析模板 · Analysis template | [Markdown](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) |
 
 ### 安装说明
 
