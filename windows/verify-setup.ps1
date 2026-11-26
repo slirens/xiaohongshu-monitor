@@ -50,8 +50,7 @@ if ($env:XHS_UI_SCREENSHOTS) {
     & $compiler /nologo /target:exe "/platform:$Architecture" /codepage:65001 "/out:$capture" /r:System.Windows.Forms.dll /r:System.Drawing.dll (Join-Path $PSScriptRoot 'CaptureF1A.cs')
     if ($LASTEXITCODE) { throw 'F+1A screenshot fixture compilation failed.' }
     foreach ($locale in @('zh-CN', 'en')) {
-        & $capture $exe $locale $env:XHS_UI_SCREENSHOTS
-        if ($LASTEXITCODE) { throw "F+1A screenshots failed for $locale." }
+        Invoke-CheckedProcess $capture @(('"{0}"' -f $exe), $locale, ('"{0}"' -f $env:XHS_UI_SCREENSHOTS)) "F+1A screenshots ($locale)"
     }
 }
 Invoke-CheckedProcess $exe @('--verify', ('"{0}"' -f $fixture)) 'Installed desktop smoke test'
