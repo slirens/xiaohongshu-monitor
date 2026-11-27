@@ -209,10 +209,12 @@ async function verify(locale) {
     await dashboard.clock.setFixedTime(new Date(`${today}T16:03:05+08:00`));
     await dashboard.locator('#start-job').focus();
     await dashboard.keyboard.press('Enter');
-    await dashboard.clock.setSystemTime(new Date(`${today}T16:04:05+08:00`));
 
     await dashboard.locator('#prompt').waitFor({ state: 'visible', timeout: 20000 });
     assert.match(await dashboard.locator('#prompt-text').innerText(), english ? /Sign in to Xiaohongshu/ : /完成小红书登录/);
+    assert.deepEqual(searched, ['宝山'], 'the first keyword is waiting for sign-in');
+    // Move the clock while the run is waiting for input so in-flight navigation deadlines stay valid.
+    await dashboard.clock.setSystemTime(new Date(`${today}T16:04:05+08:00`));
     await capture('FA-05');
     await capture('FA-11', [[440, 285]]);
     await dashboard.locator('#stop-from-prompt').click();
@@ -238,8 +240,9 @@ async function verify(locale) {
     assert.equal(result.suggestedFilename(), `宝山_${today}_2词_160305.xlsx`);
     await dashboard.locator('#stop').waitFor({ state: 'hidden' });
     assert(monitored.isClosed(), 'owned browser tab closed after collection');
-    assert.equal(await dashboard.locator('#status').innerText(), english ? 'Excel ready' : '已生成 Excel');
-    assert.match(await dashboard.locator('#history').textContent(), english
+    const history = await dashboard.locator('#history').textContent();
+    assert.equal(await dashboard.locator('#status').innerText(), english ? 'Excel ready' : '已生成 Excel', history);
+    assert.match(history, english
       ? /1\/2 · “宝山” complete · 1 note[\s\S]*2\/2 · “硚口” complete · 1 note/
       : /1\/2 · 「宝山」完成 · 1 条[\s\S]*2\/2 · 「硚口」完成 · 1 条/);
     assert.equal(await dashboard.locator('#progress').getAttribute('value'), '2');
