@@ -17,13 +17,20 @@ A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWE
 
 The Windows edition requires Windows 10 or later and supports Microsoft Edge, Google Chrome, and the Chromium engine in 360 browsers. The macOS edition requires macOS 14 or later and uses Safari.
 
-The v1.1.1 interface uses red, white, and ink. Task setup, monitoring, and export results are shown as three steps, with advanced options on a separate screen. The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
+The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
+
+## What's new in v1.1.1
+
+- **v1.1.1 interface and navigation.** The red, white, and ink palette comes with a new app icon. See where a task stands as it moves through setup, monitoring, and results.
+- **Task setup and follow-up monitoring.** More settings groups sort order, scroll limits, report templates, and AI settings. To continue monitoring, load the most recent report or choose another Excel workbook. Add or remove the imported keywords before starting the next run.
+- **Progress and compact window.** The monitoring screen shows live progress and prompts when sign-in or stop confirmation is needed. Desktop users can follow the run in a compact window. On Windows, send the task to the system tray or export diagnostic logs from the toolbar.
+- **Results and reports.** The results screen summarizes the run and gives you direct access to the Excel report. Windows and the HUAWEI Browser extension also show each keyword’s status and note count. For runs with more than six keywords, expand the list to filter by keyword or completion status.
+
+The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
 
 ![v1.1.1 Windows task setup](design/v2/screenshots/windows/1080x660/en/FA-01.png)
 
 [View the v1.1.1 interface design reference](design/v2/reference/F1A-苹果基准-完整版.png)
-
-The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
 
 ## Built-in analysis framework
 
