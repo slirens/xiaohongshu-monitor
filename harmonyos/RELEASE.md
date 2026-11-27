@@ -1,6 +1,6 @@
 ## v1.1.1 · 鸿蒙电脑华为浏览器扩展
 
-监控工作台采用 F+1A 红白墨配色与新 Logo。设置、执行和导出分三步显示。继续监控可恢复最近报告中的关键词，或者改选本地 Excel。结果页可查看关键词的执行状态与笔记数，关键词较多时可展开并按完成状态筛选。工作簿生成后由浏览器下载，也可以再次下载。
+v1.1.1 界面采用红、白和墨色，并使用新 Logo。设置、执行和导出分三步显示。继续监控可恢复最近报告中的关键词，或者改选本地 Excel。结果页可查看关键词的执行状态与笔记数，关键词较多时可展开并按完成状态筛选。工作簿生成后由浏览器下载，也可以再次下载。
 
 从 [v1.1.1 的下载页](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) 选择 `xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip`。需要 HarmonyOS 6.0 或更新版本及华为浏览器 5.1.10.300 或更新版本。在「管理扩展程序」开启开发者模式，加载 ZIP 解压后包含 `manifest.json` 的目录。 [华为版本要求](https://consumer.huawei.com/cn/support/content/zh-cn16055938/) · [华为安装说明](https://consumer.huawei.com/cn/support/content/zh-cn16082289/)
 
@@ -10,7 +10,7 @@
 
 ## v1.1.1 · HUAWEI Browser extension for HarmonyOS PC
 
-The monitoring workspace uses the F+1A red-and-white palette and the new logo. Set up a task, monitor its progress, and export the results. To continue monitoring, load the latest report or choose another Excel workbook. The results show each keyword’s status and note count, with an expandable list and status filters for larger runs. The browser downloads the Excel workbook when it is ready, and you can download it again from the results.
+The v1.1.1 interface uses a red, white, and ink palette with the new logo. Set up a task, monitor its progress, and export the results. To continue monitoring, load the latest report or choose another Excel workbook. The results show each keyword’s status and note count, with an expandable list and status filters for larger runs. The browser downloads the Excel workbook when it is ready, and you can download it again from the results.
 
 Download `xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip` from the [v1.1.1 release page](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1). Use HarmonyOS 6.0 or later and HUAWEI Browser 5.1.10.300 or later. Extract the ZIP, enable Developer mode in Manage extensions, and load the folder containing `manifest.json`. [Huawei installation instructions](https://consumer.huawei.com/cn/support/content/zh-cn16082289/)
 

@@ -17,11 +17,11 @@ A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWE
 
 The Windows edition requires Windows 10 or later and supports Microsoft Edge, Google Chrome, and the Chromium engine in 360 browsers. The macOS edition requires macOS 14 or later and uses Safari.
 
-The F+1A interface uses red, white, and ink. Task setup, monitoring, and export results are shown as three steps, with advanced options on a separate screen. The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
+The v1.1.1 interface uses red, white, and ink. Task setup, monitoring, and export results are shown as three steps, with advanced options on a separate screen. The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
 
-![F+1A Windows task setup](design/v2/screenshots/windows/1080x660/en/FA-01.png)
+![v1.1.1 Windows task setup](design/v2/screenshots/windows/1080x660/en/FA-01.png)
 
-[View the F+1A design reference](design/v2/reference/F1A-苹果基准-完整版.png)
+[View the v1.1.1 interface design reference](design/v2/reference/F1A-苹果基准-完整版.png)
 
 The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
 

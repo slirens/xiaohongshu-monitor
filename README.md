@@ -23,11 +23,11 @@
 
 Windows 版要求 Windows 10 或更新版本，支持 Microsoft Edge、Google Chrome 和 360 系列浏览器的 Chromium 极速模式。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
-F+1A 使用红、白和墨色，以「设置任务 → 执行监控 → 导出结果」呈现工作流程。更多设置放在独立页面。界面按系统显示语言选择简体中文或英文，华为浏览器扩展跟随浏览器语言。
+v1.1.1 界面使用红、白和墨色，以「设置任务 → 执行监控 → 导出结果」呈现工作流程。更多设置放在独立页面。界面按系统显示语言选择简体中文或英文，华为浏览器扩展跟随浏览器语言。
 
-![F+1A Windows 新建监控界面](design/v2/screenshots/windows/1080x660/zh-CN/FA-01.png)
+![v1.1.1 Windows 新建监控界面](design/v2/screenshots/windows/1080x660/zh-CN/FA-01.png)
 
-[查看 F+1A 设计参考图](design/v2/reference/F1A-苹果基准-完整版.png)
+[查看 v1.1.1 界面设计参考图](design/v2/reference/F1A-苹果基准-完整版.png)
 
 Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名，未经过 Apple 公证。首次打开时，系统可能提示安全确认。
 

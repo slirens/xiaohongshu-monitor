@@ -1,12 +1,18 @@
 ## 更新 · What's new
 
-- F+1A 界面采用红、白和墨色，按设置任务、执行监控、导出结果三个阶段组织操作。
-- 更新应用图标，优化继续监控的报告选择、更多设置、任务状态和紧凑进度窗。
-- 采集、续查记录及 Excel 报告使用现有的检索、分析和导出规则。
+### 中文
 
-- The new F+1A interface uses red, white, and ink and presents task setup, monitoring, and export results as three steps.
-- The new app icon accompanies updates to report selection, advanced settings, and the compact progress window.
-- Collection, recurring monitoring, and Excel export use the existing search, analysis, and reporting rules.
+- **v1.1.1 界面与导航**采用红、白和墨色，并更新应用图标。界面依次呈现「设置任务」「执行监控」「导出结果」，方便确认任务当前所在阶段。
+- **任务设置与继续监控**把排序、划屏数量、报告模板和 AI 配置集中在「更多设置」。选择「继续监控」后，可使用最近一次报告，或选择其他 Excel 报告。载入的关键词可直接增删，再开始续查。
+- **执行进度与小窗**在运行中显示当前进度，等待登录或停止任务时给出相应提示。桌面版可用紧凑窗口跟进任务。Windows 用户还可将任务收至系统托盘，或从窗口顶栏导出诊断日志。
+- **查看结果与报告**在结果页汇总任务状态，可直接打开或下载 Excel。Windows 和华为浏览器扩展还显示逐关键词状态和笔记数。关键词超过 6 个时，可展开完整列表，按关键词或完成状态筛选。
+
+### English
+
+- **v1.1.1 interface and navigation.** The red, white, and ink palette comes with a new app icon. See where a task stands as it moves through setup, monitoring, and results.
+- **Task setup and follow-up monitoring.** More settings groups sort order, scroll limits, report templates, and AI settings. To continue monitoring, load the most recent report or choose another Excel workbook. Add or remove the imported keywords before starting the next run.
+- **Progress and compact window.** The monitoring screen shows live progress and prompts when sign-in or stop confirmation is needed. Desktop users can follow the run in a compact window. On Windows, send the task to the system tray or export diagnostic logs from the toolbar.
+- **Results and reports.** The results screen summarizes the run and gives you direct access to the Excel report. Windows and the HUAWEI Browser extension also show each keyword’s status and note count. For runs with more than six keywords, expand the list to filter by keyword or completion status.
 
 ## 下载 · Download
 
