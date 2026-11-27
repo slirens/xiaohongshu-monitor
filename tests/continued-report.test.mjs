@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { normalizeEngagement, readEngagementLabels } from '../engagement.mjs';
+import { makeReportFilename } from '../report-template.mjs';
 
 const require = createRequire(import.meta.url);
 const installedRequire = createRequire(join(dirname(process.execPath), '_resolve.cjs'));
@@ -23,6 +24,13 @@ const day2 = '2026-11-11';
 const note = (digit, title, date, counts) => ({ id: id(digit), title, date, url: link(digit),
   body: title + ' 这是一条测试笔记', engagement: counts });
 const counts = (likes, saves, comments) => ({ likes, saves, comments });
+
+test('report filenames use the first keyword and Beijing task start time, including across midnight', () => {
+  const startedAt = new Date('2026-11-11T16:03:05Z');
+  assert.equal(makeReportFilename(['Alpha', '硚口', '上海'], startedAt), 'Alpha_2026-11-12_3词_000305.xlsx');
+  assert.equal(makeReportFilename(['../远程\\查找:超长测试关键词更多'], startedAt),
+    '远程-查找-超长测_2026-11-12_1词_000305.xlsx');
+});
 
 test('engagement extraction uses the note bar, preserves zero, and skips abbreviated counts', () => {
   const control = count => ({
@@ -50,9 +58,10 @@ test('two rounds restore editable keywords, refresh older notes, and export veri
       note('2', 'beta', day1, counts(4, 4, 4)),
       note('3', 'alpha 缺失值', day1, counts(0, null, 3)),
     ]));
-    await runBatch({ keyword: 'alpha beta empty', start: day1, end: day1, source: sample }, ask);
+    await runBatch({ keyword: 'alpha beta empty', start: day1, end: day1, source: sample,
+      startedAt: '2026-11-10T08:03:05Z' }, ask);
     const [original] = await readdir(reports);
-    assert.match(original, /^舆情_\d{6}_[a-f0-9]{6}\.xlsx$/);
+    assert.equal(original, 'alpha_2026-11-10_3词_160305.xlsx');
     const prior = join(reports, original);
     const imported = await inspectReport(prior);
     assert.deepEqual(imported.keywords, ['alpha', 'beta', 'empty']);
@@ -78,8 +87,9 @@ test('two rounds restore editable keywords, refresh older notes, and export veri
       note('4', 'alpha gamma', day2, counts(7, 8, 9)),
     ]));
     await runBatch({ keyword: 'alpha gamma', start: day2, end: day2, source: sample,
-      continueReport: prior, apiKey: 'synthetic-key', provider: 'OpenAI' }, ask);
+      continueReport: prior, apiKey: 'synthetic-key', provider: 'OpenAI', startedAt: '2026-11-11T08:03:05Z' }, ask);
     const [updated] = (await readdir(reports)).filter(name => name !== original);
+    assert.equal(updated, 'alpha_2026-11-11_2词_160305.xlsx');
     const updatedPath = join(reports, updated);
     assert.deepEqual((await inspectReport(updatedPath)).keywords, ['alpha', 'gamma']);
     const book = new Workbook();
@@ -117,6 +127,14 @@ test('two rounds restore editable keywords, refresh older notes, and export veri
     const aiSummary = calls.find(call => call.name === 'report_summary')?.data;
     assert.equal(aiSummary.update.engagement.comments.delta, 1);
     assert.equal(aiSummary.changedNotes.find(row => row.title === 'alpha').comparison.likes.rate, 1);
+
+    const baseline = await readFile(updatedPath);
+    const repeat = { keyword: 'alpha gamma', start: day2, end: day2, source: sample, startedAt: '2026-11-11T08:03:05Z' };
+    await Promise.all([runBatch(repeat, ask), runBatch(repeat, ask)]);
+    assert.deepEqual(await readFile(updatedPath), baseline);
+    const all = await readdir(reports);
+    assert.ok(all.includes('alpha_2026-11-11_2词_160305_02.xlsx'));
+    assert.ok(all.includes('alpha_2026-11-11_2词_160305_03.xlsx'));
   } finally {
     globalThis.fetch = originalFetch;
     if (originalHome === undefined) delete process.env.XHS_MONITOR_HOME;

@@ -18,6 +18,7 @@ from f1a import FULL_MINIMUM, FULL_SIZE, MonitorView
 APP_ROOT = Path(__file__).resolve().parent
 PROVIDERS = ("OpenAI", "Claude", "Gemini", "DeepSeek", "Kimi", "GLM", "Qwen")
 REPORT_PREFIXES = ("已生成 Excel：", "Excel report: ")
+TIMESTAMPED_REPORT_NAME = re.compile(r".+_[0-9]{4}-[0-9]{2}-[0-9]{2}_[1-9][0-9]*词_[0-9]{6}(?:_[0-9]{2,})?")
 SHANGHAI = timezone(timedelta(hours=8))
 PROGRESS_LINES = (
     "开始关键词 ", "正在打开", "正在后台启动", "扫描「", "读笔记 ", "分析 ", "正在生成 Excel",
@@ -59,7 +60,10 @@ def date_value(value):
 
 def latest_report(home):
     try:
-        return max((path for path in (home / "reports").glob("舆情_*.xlsx") if path.is_file()),
+        return max((path for path in (home / "reports").iterdir()
+                    if not path.name.startswith(".") and path.suffix.lower() == ".xlsx"
+                    and (path.stem.startswith("舆情_") or TIMESTAMPED_REPORT_NAME.fullmatch(path.stem))
+                    and path.is_file()),
                    key=lambda path: path.stat().st_mtime, default=None)
     except OSError:
         return None
@@ -374,6 +378,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
     def start(self, source=""):
         if self.worker is not None or self.importing_report:
             return
+        started_at = datetime.now(timezone.utc)
         (keyword, start, end, count), (key_error, date_error, screen_error, _) = self.validate_form()
         if key_error or date_error or screen_error:
             self._read_errors = True
@@ -388,6 +393,7 @@ catch (error) { console.error(error.message); process.exitCode = 1; }
         selected = self.template.get()
         request = {
             "keyword": keyword, "start": start.isoformat(), "end": end.isoformat(),
+            "startedAt": started_at.isoformat(timespec="milliseconds"),
             "sort": SORT_OPTIONS[self.sort.get()], "screens": count, "source": source,
             "continueReport": str(self.previous_report) if self.previous_report else "",
             "template": "" if selected == BUILTIN else str(self.templates / (selected + ".md")),
@@ -666,6 +672,7 @@ def verify_app(app, fixture):
         raise RuntimeError(app.log.get("1.0", "end-1c"))
     assert [progress.split()[0] for progress in app.progress_history] == ["1/2", "2/2"]
     first = app.report
+    assert re.fullmatch(r"宝山_[0-9]{4}-[0-9]{2}-[0-9]{2}_2词_[0-9]{6}\.xlsx", first.name)
     assert app.last_report == first and latest_report(app.home) == first
     app.import_previous_report()
     deadline = monotonic() + 30
@@ -686,6 +693,7 @@ def verify_app(app, fixture):
         app.window.tk.call("after", 25)
     assert app.worker is None and app.result == 0 and app.report.is_file(), app.status.get()
     assert app.report != first and first.is_file() and app.previous_report == app.report
+    assert re.fullmatch(r"宝山_[0-9]{4}-[0-9]{2}-[0-9]{2}_2词_[0-9]{6}(?:_[0-9]{2,})?\.xlsx", app.report.name)
     app.new_task()
     app.import_previous_report()
     deadline = monotonic() + 30

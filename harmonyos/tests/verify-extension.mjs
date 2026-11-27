@@ -206,8 +206,10 @@ async function verify(locale) {
     await dashboard.locator('#reset-template').click();
     await dashboard.locator('#done-settings').click();
 
+    await dashboard.clock.setFixedTime(new Date(`${today}T16:03:05+08:00`));
     await dashboard.locator('#start-job').focus();
     await dashboard.keyboard.press('Enter');
+    await dashboard.clock.setSystemTime(new Date(`${today}T16:04:05+08:00`));
 
     await dashboard.locator('#prompt').waitFor({ state: 'visible', timeout: 20000 });
     assert.match(await dashboard.locator('#prompt-text').innerText(), english ? /Sign in to Xiaohongshu/ : /完成小红书登录/);
@@ -233,7 +235,7 @@ async function verify(locale) {
     await capture('FA-10', [[440, 285]]);
     releaseSearch();
     const result = await download;
-    assert.match(result.suggestedFilename(), new RegExp(`^${english ? 'Xiaohongshu' : '舆情'}_${today.slice(2).replaceAll('-', '')}_[a-f0-9]{6}\\.xlsx$`));
+    assert.equal(result.suggestedFilename(), `宝山_${today}_2词_160305.xlsx`);
     await dashboard.locator('#stop').waitFor({ state: 'hidden' });
     assert(monitored.isClosed(), 'owned browser tab closed after collection');
     assert.equal(await dashboard.locator('#status').innerText(), english ? 'Excel ready' : '已生成 Excel');

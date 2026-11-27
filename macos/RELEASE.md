@@ -1,11 +1,12 @@
-## macOS v1.1.1
+## macOS v1.1.2
 
-v1.1.1 界面采用红、白、墨配色与新应用图标。工具栏标识任务进度，更多设置移入独立页面，运行中可展开查看日志或缩为紧凑窗。继续监控仍可导入上次 Excel，并修改其中的关键词。应用根据系统语言显示简体中文或英文。
+- 继续监控支持直接读取 Excel 内的续查数据，更快恢复历史报告中的关键词与日期。兼容旧报告。
+- 恢复按首个关键词、发起日期、关键词数量和发起时分秒命名。日期与时间均为北京时间，例如 `宝山_2026-11-23_2词_003000.xlsx`。
 
 | 平台 | 下载 |
 | --- | --- |
-| Apple 芯片 | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) |
-| Intel | [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) |
+| Apple 芯片 | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-arm64.dmg) |
+| Intel | [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg) |
 
 1. 在 macOS 14 或更新版本打开 DMG，将应用拖入「应用程序」。
 2. 在 Safari「设置 → 高级」显示网页开发者功能，然后在「开发 → 开发者设置」打开「允许来自 Apple 事件的 JavaScript」。macOS 询问时，允许应用控制 Safari。
@@ -15,11 +16,12 @@ v1.1.1 界面采用红、白、墨配色与新应用图标。工具栏标识任�
 
 仅限合法、非商业使用。自动化浏览可能触发平台警告或限制，影响账号权益和流量。
 
-## macOS v1.1.1 · English
+## macOS v1.1.2 · English
 
-The v1.1.1 interface introduces a red, white, and ink palette with a new app icon. The toolbar shows the current task stage. More settings has its own screen, and monitoring can run in the full window or a compact window. Follow-up monitoring still imports keywords from the previous Excel report for editing. The app uses Simplified Chinese or English according to the system language.
+- Follow-up monitoring reads the history data embedded in Excel files directly to restore keywords and dates faster. Older reports are supported.
+- Filenames once again include the first keyword, the launch date, the keyword count, and the launch time. The date and time use Beijing time, as in `宝山_2026-11-23_2词_003000.xlsx`.
 
-1. On macOS 14 or later, open the [Apple Silicon DMG](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) or [Intel x64 DMG](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) and drag the app to Applications.
+1. On macOS 14 or later, open the [Apple Silicon DMG](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-arm64.dmg) or [Intel x64 DMG](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg) and drag the app to Applications.
 2. In Safari Settings → Advanced, enable features for web developers. In Develop → Developer Settings, enable **Allow JavaScript from Apple Events**. When prompted, allow the app to control Safari.
 3. If Safari requests sign-in or verification, complete it in the window opened by the app, then return to the monitoring interface to continue.
 

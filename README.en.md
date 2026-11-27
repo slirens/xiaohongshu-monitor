@@ -10,21 +10,19 @@ A desktop tool for Windows, macOS, and Linux, with a preview extension for HUAWE
 
 | Platform | Downloads | Release notes |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x86-setup.exe) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-linux-amd64.deb) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| HarmonyOS PC | [HUAWEI Browser extension ZIP (preview)](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-harmonyos-browser.zip) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
 
 The Windows edition requires Windows 10 or later and supports Microsoft Edge, Google Chrome, and the Chromium engine in 360 browsers. The macOS edition requires macOS 14 or later and uses Safari.
 
 The Windows installers are Authenticode-unsigned. The macOS apps are ad-hoc signed and have not been notarized by Apple. Your operating system may show a security prompt on first launch.
 
-## What's new in v1.1.1
+## What's new in v1.1.2
 
-- **v1.1.1 interface and navigation.** The red, white, and ink palette comes with a new app icon. See where a task stands as it moves through setup, monitoring, and results.
-- **Task setup and follow-up monitoring.** More settings groups sort order, scroll limits, report templates, and AI settings. To continue monitoring, load the most recent report or choose another Excel workbook. Add or remove the imported keywords before starting the next run.
-- **Progress and compact window.** The monitoring screen shows live progress and prompts when sign-in or stop confirmation is needed. Desktop users can follow the run in a compact window. On Windows, send the task to the system tray or export diagnostic logs from the toolbar.
-- **Results and reports.** The results screen summarizes the run and gives you direct access to the Excel report. Windows and the HUAWEI Browser extension also show each keyword’s status and note count. For runs with more than six keywords, expand the list to filter by keyword or completion status.
+- **Faster report loading when continuing monitoring.** Windows, macOS, and Linux read saved continuation data directly where supported, so keywords and dates load faster. Older report formats can still be imported.
+- **Restored Excel file naming.** All four platforms include the first keyword, run date, keyword count, and run start time, as in `宝山_2026-11-24_2词_173050.xlsx`. Names use Beijing time at the start of the run. Desktop apps append a number for duplicate names.
 
 The desktop apps follow the system display language, and the HarmonyOS extension follows the browser language.
 
@@ -34,7 +32,7 @@ The desktop apps follow the system display language, and the HarmonyOS extension
 
 ## Built-in analysis framework
 
-[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) · [View source](报告生成模板.md)
+[Download the built-in Markdown template](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/analysis-template.md) · [View source](报告生成模板.md)
 
 | Level | Built-in framework |
 | --- | --- |
@@ -63,7 +61,7 @@ Desktop reports are written to the local `reports` folder. The browser extension
 
 ### Linux
 
-On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.1.1-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
+On Ubuntu 22.04 or 24.04 Desktop (x64), install Google Chrome, then open the DEB with your software installer or run `sudo apt install ./xiaohongshu-monitor-v1.1.2-linux-amd64.deb`. Open **Xiaohongshu Monitor** from the applications menu and sign in when the dedicated browser opens on the first run. Reports are saved to `~/.local/share/xiaohongshu-monitor/reports` by default.
 
 APT will ask for downgrade confirmation if a previously released package with a higher version number is installed.
 

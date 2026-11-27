@@ -16,21 +16,19 @@
 
 | 系统 | 下载 | 发布说明 |
 | --- | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
-| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) | [v1.1.1](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.1) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x86-setup.exe) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-linux-amd64.deb) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
+| 鸿蒙电脑 | [华为浏览器扩展 ZIP（预览）](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-harmonyos-browser.zip) | [v1.1.2](https://github.com/slirens/xiaohongshu-monitor/releases/tag/v1.1.2) |
 
 Windows 版要求 Windows 10 或更新版本，支持 Microsoft Edge、Google Chrome 和 360 系列浏览器的 Chromium 极速模式。macOS 版要求 macOS 14 或更新版本，并使用 Safari。
 
 Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名，未经过 Apple 公证。首次打开时，系统可能提示安全确认。
 
-## v1.1.1 更新 · What's new
+## v1.1.2 更新 · What's new
 
-- **v1.1.1 界面与导航**采用红、白和墨色，并更新应用图标。界面依次呈现「设置任务」「执行监控」「导出结果」，方便确认任务当前所在阶段。
-- **任务设置与继续监控**把排序、划屏数量、报告模板和 AI 配置集中在「更多设置」。选择「继续监控」后，可使用最近一次报告，或选择其他 Excel 报告。载入的关键词可直接增删，再开始续查。
-- **执行进度与小窗**在运行中显示当前进度，等待登录或停止任务时给出相应提示。桌面版可用紧凑窗口跟进任务。Windows 用户还可将任务收至系统托盘，或从窗口顶栏导出诊断日志。
-- **查看结果与报告**在结果页汇总任务状态，可直接打开或下载 Excel。Windows 和华为浏览器扩展还显示逐关键词状态和笔记数。关键词超过 6 个时，可展开完整列表，按关键词或完成状态筛选。
+- **继续监控读取提速**。Windows、macOS 和 Linux 优先从 Excel 直接读取续查数据，更快恢复关键词和日期。旧格式报告仍可导入。
+- **恢复 Excel 文件名规则**。四个平台按「首个关键词_发起日期_关键词数_发起时间」命名，例如 `宝山_2026-11-24_2词_173050.xlsx`。时间采用任务发起时的北京时间，桌面版同秒重名时追加序号。
 
 界面按系统显示语言选择简体中文或英文，华为浏览器扩展跟随浏览器语言。
 
@@ -40,7 +38,7 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 
 ## 内置舆情分析框架
 
-[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) · [查看模板源码](报告生成模板.md)
+[下载内置 Markdown 模板](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/analysis-template.md) · [查看模板源码](报告生成模板.md)
 
 | 层级 | 内置分析框架 |
 | --- | --- |
@@ -63,7 +61,7 @@ Windows 安装程序未做 Authenticode 签名。macOS 应用使用临时签名�
 
 ### Linux
 
-在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.1.1-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
+在 Ubuntu 22.04 或 24.04 桌面版（x64）安装 Google Chrome 后，用软件安装器打开 DEB，或执行 `sudo apt install ./xiaohongshu-monitor-v1.1.2-linux-amd64.deb`。安装后从应用菜单打开「小红书舆情监控」，首次采集在程序打开的浏览器窗口完成登录。报告默认保存在 `~/.local/share/xiaohongshu-monitor/reports`。
 
 如果系统里已安装版本号更高的旧版，APT 会提示确认降级。
 

@@ -1,10 +1,10 @@
-name: Build and verify v1.1.1 packages
+name: Build and verify v1.1.2 packages
 
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish v1.1.1 after all packages pass verification
+        description: Publish v1.1.2 after all packages pass verification
         type: boolean
         default: false
 
@@ -31,22 +31,22 @@ jobs:
   windows:
     uses: ./.github/workflows/windows-setup.yml
     with:
-      version: '1.1.1'
+      version: '1.1.2'
 
   macos:
     uses: ./.github/workflows/macos-dmg.yml
     with:
-      version: '1.1.1'
+      version: '1.1.2'
 
   linux:
     uses: ./.github/workflows/linux.yml
     with:
-      version: '1.1.1'
+      version: '1.1.2'
 
   harmonyos:
     uses: ./.github/workflows/harmonyos.yml
     with:
-      version: '1.1.1'
+      version: '1.1.2'
 
   publish:
     if: ${{ inputs.publish && github.repository == 'slirens/xiaohongshu-monitor' && github.ref == 'refs/heads/main' }}
@@ -83,15 +83,15 @@ jobs:
           cd packages
           cp ../报告生成模板.md analysis-template.md
           packages=(
-            xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe
-            xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe
-            xiaohongshu-monitor-v1.1.1-macos-arm64.dmg
-            xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg
-            xiaohongshu-monitor-v1.1.1-linux-amd64.deb
-            xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip
+            xiaohongshu-monitor-v1.1.2-windows-x64-setup.exe
+            xiaohongshu-monitor-v1.1.2-windows-x86-setup.exe
+            xiaohongshu-monitor-v1.1.2-macos-arm64.dmg
+            xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg
+            xiaohongshu-monitor-v1.1.2-linux-amd64.deb
+            xiaohongshu-monitor-v1.1.2-harmonyos-browser.zip
             analysis-template.md
           )
           sha256sum "${packages[@]}" > SHA256SUMS.txt
-          gh release create v1.1.1 "${packages[@]}" SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --title 'v1.1.1' \
+          gh release create v1.1.2 "${packages[@]}" SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.1.2' \
             --notes-file ../RELEASE.md --latest

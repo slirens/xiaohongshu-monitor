@@ -55,7 +55,7 @@ const reports = process.argv[3];
 async function verifyReports() {
   const files = fs.readdirSync(reports);
   assert.equal(files.length, 1);
-  assert.match(files[0], /^舆情_\d{6}_[a-f0-9]+\.xlsx$/);
+  assert.equal(files[0], "宝山_2026-11-23_2词_003000.xlsx");
   const workbook = new Workbook();
   await workbook.xlsx.readFile(path.join(reports, files[0]));
   assert.deepEqual(workbook.worksheets.filter(sheet => sheet.state === "visible").map(sheet => sheet.name),

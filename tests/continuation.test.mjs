@@ -2,13 +2,15 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  compareEngagement, continuationMetadata, continuationReports, keywordStart, mergeContinuation,
+  compareEngagement, continuationMetadata, continuationReports, continuationStateChunks,
+  continuationStateSignature, keywordStart, mergeContinuation,
   readContinuationBytes, readContinuationWorkbook, writeContinuation,
 } from '../continuation.mjs';
 
 const require = createRequire(import.meta.url);
 const { Workbook } = require('exceljs');
 const Zip = require('jszip');
+const { SaxesParser } = require('saxes');
 const id = 'a'.repeat(24);
 const url = `https://www.xiaohongshu.com/explore/${id}`;
 const note = (engagement, extra) => ({ id, url, date: '2026-11-10', title: 'A B 客户体验', body: '附详细反馈',
@@ -106,9 +108,89 @@ test('reads pre-ExcelJS reports with a qualified worksheet namespace', async () 
         'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'));
   }
   const state = await readContinuationBytes(await zip.generateAsync({ type: 'uint8array' }), {
-    Workbook, legacyZip: async () => Zip,
+    Workbook, Zip, SaxesParser, legacyZip: async () => Zip,
   });
   assert.deepEqual(state.keywords, ['A']);
   assert.equal(state.notes[0].url, url);
   assert.equal(continuationMetadata(state).start, '2026-11-11');
+});
+
+test('reads suffixed embedded state without opening the visible worksheets', async () => {
+  const book = new Workbook();
+  book.addWorksheet('总结').addRows([['指标', '值'], ['关键词', 'Visible sheet']]);
+  book.addWorksheet('_xhs_continuation').addRow([continuationStateSignature]);
+  const state = mergeContinuation(null, [report('宝山', [note({ likes: 4 }, { body: '🔎'.repeat(3000) })]), report('硚口')],
+    run('2026-11-10'));
+  writeContinuation(book, state);
+  const zip = await Zip.loadAsync(await book.xlsx.writeBuffer());
+  // A visible sheet with the reserved name is ignored, and the legacy loader would fail on this XML.
+  zip.file('xl/worksheets/sheet1.xml', '<broken>');
+  const loaded = await readContinuationBytes(await zip.generateAsync({ type: 'uint8array' }), {
+    Zip, SaxesParser, loadWorkbook: () => assert.fail('Do not load ExcelJS for an embedded state'),
+  });
+  assert.deepEqual(loaded, state);
+  assert.deepEqual(continuationMetadata(loaded), continuationMetadata(state));
+});
+
+test('reads inline state strings and does not require a shared string table', async () => {
+  const state = mergeContinuation(null, [report('A < B & C', [note({ likes: 12 })])], run('2026-11-11'));
+  const book = new Workbook();
+  book.addWorksheet('总表').addRow(['title']);
+  writeContinuation(book, state);
+  const zip = await Zip.loadAsync(await book.xlsx.writeBuffer());
+  const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const rows = [continuationStateSignature, ...continuationStateChunks(state)].map((value, index) => {
+    const row = index + 1;
+    return `<row r="${row}"><c r="A${row}" t="inlineStr"><is><r><t>${escape(value.slice(0, 4))}</t></r><r><t>${escape(value.slice(4))}</t></r></is></c></row>`;
+  }).join('');
+  zip.file('xl/worksheets/sheet2.xml',
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows}</sheetData></worksheet>`);
+  zip.remove('xl/sharedStrings.xml');
+  assert.deepEqual(await readContinuationBytes(await zip.generateAsync({ type: 'uint8array' }), {
+    Zip, SaxesParser, loadWorkbook: () => assert.fail('Inline state does not require ExcelJS'),
+  }), state);
+});
+
+test('falls back to the first signed hidden state when its sheet name was changed', async () => {
+  const prior = mergeContinuation(null, [report('older')], run('2026-11-10'));
+  const next = mergeContinuation(null, [report('newer')], run('2026-11-11'));
+  const book = new Workbook();
+  writeContinuation(book, prior);
+  book.worksheets[0].name = 'Renamed history';
+  writeContinuation(book, next);
+  let workbookLoads = 0;
+  const loaded = await readContinuationBytes(await book.xlsx.writeBuffer(), {
+    Zip, SaxesParser, loadWorkbook: async () => {
+      workbookLoads++;
+      return { Workbook };
+    },
+  });
+  assert.equal(workbookLoads, 1);
+  assert.deepEqual(loaded, prior);
+});
+
+test('falls back to legacy visible reports when no signed hidden state exists', async () => {
+  const book = new Workbook();
+  book.addWorksheet('总结').addRows([['指标', '值'], ['关键词', 'Legacy report']]);
+  book.addWorksheet('_xhs_continuation', { state: 'veryHidden' }).addRows([['Not the state signature'], ['{}']]);
+  let workbookLoads = 0;
+  const loaded = await readContinuationBytes(await book.xlsx.writeBuffer(), {
+    Zip, SaxesParser, loadWorkbook: async () => {
+      workbookLoads++;
+      return Workbook;
+    },
+  });
+  assert.equal(workbookLoads, 1);
+  assert.deepEqual(loaded.keywords, ['Legacy', 'report']);
+});
+
+test('a signed but malformed hidden state preserves the corruption error', async () => {
+  const book = new Workbook();
+  book.addWorksheet('总结').addRows([['指标', '值'], ['关键词', 'Legacy fallback']]);
+  book.addWorksheet('_xhs_continuation', { state: 'veryHidden' }).addRows([[
+    continuationStateSignature,
+  ], ['{"version":2}']]);
+  await assert.rejects(readContinuationBytes(await book.xlsx.writeBuffer(), {
+    Zip, SaxesParser, loadWorkbook: () => assert.fail('Corrupt embedded state must be reported'),
+  }), /Monitoring history is damaged or uses an unsupported format/);
 });

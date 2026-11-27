@@ -87,7 +87,7 @@ $warmWorkerArgs = @(
 Invoke-CheckedProcess $node $warmWorkerArgs 'Installed worker prewarm verification' -TimeoutSeconds 120
 $report = Get-ChildItem -LiteralPath (Join-Path $appFolder 'reports') -Filter '*.xlsx'
 if (@($report).Count -ne 1) { throw 'Expected one combined Excel report.' }
-if ($report.Name -notmatch '^舆情_\d{6}_[a-f0-9]+\.xlsx$') { throw 'Unexpected report filename.' }
+if ($report.Name -ne '之禾_2026-11-21_2词_163005.xlsx') { throw 'Unexpected report filename.' }
 $env:XHS_VERIFY_WORKBOOK = $report.FullName
 $env:XHS_VERIFY_EXCELJS = Join-Path $appFolder 'runtime/node_modules/exceljs'
 $check = @'

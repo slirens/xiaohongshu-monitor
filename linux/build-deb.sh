@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 output=${1:-"$repo/dist/linux"}
-version=${2:-1.1.1}
+version=${2:-1.1.2}
 app_id=xiaohongshu-monitor
 design=$repo/design/v2
 

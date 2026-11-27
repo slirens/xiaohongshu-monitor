@@ -356,23 +356,176 @@ export function parseContinuationState(json) {
   return state;
 }
 
-export async function readContinuation(path, { Workbook }) {
-  const { readFile } = await import('node:fs/promises');
-  const bytes = await readFile(path);
-  return readContinuationBytes(bytes, { Workbook, legacyZip: async () => {
-    const { createRequire } = await import('node:module');
-    return createRequire(import.meta.url)('jszip');
-  } });
+const sheetXml = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const packageRelations = 'http://schemas.openxmlformats.org/package/2006/relationships';
+const workbookRelations = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const continuationTab = /^_xhs_continuation(?:_(?:[2-9]|[1-9]\d+))?$/;
+
+function readXml(xml, SaxesParser, namespace, { open, close, text }) {
+  const parser = new SaxesParser({ xmlns: true });
+  const path = [];
+  parser.on('opentag', tag => {
+    path.push(tag.uri === namespace ? tag.local : '');
+    open?.(path, tag.attributes);
+  });
+  parser.on('closetag', () => {
+    close?.(path);
+    path.pop();
+  });
+  if (text) {
+    parser.on('text', value => text(path, value));
+    parser.on('cdata', value => text(path, value));
+  }
+  parser.write(xml).close();
 }
 
-export async function readContinuationBytes(bytes, { Workbook, legacyZip }) {
-  let book = new Workbook();
+function hiddenTabs(xml, SaxesParser) {
+  const tabs = [];
+  readXml(xml, SaxesParser, sheetXml, { open(path, attrs) {
+    if (path.length !== 3 || path[0] !== 'workbook' || path[1] !== 'sheets' || path[2] !== 'sheet') return;
+    if (attrs.state?.value !== 'hidden' && attrs.state?.value !== 'veryHidden') return;
+    const relation = Object.values(attrs).find(attr => attr.uri === workbookRelations && attr.local === 'id');
+    tabs.push({ name: attrs.name?.value, relation: relation?.value });
+  } });
+  return tabs;
+}
+
+function relatedFiles(xml, SaxesParser) {
+  const sheets = new Map();
+  let sharedStrings;
+  readXml(xml, SaxesParser, packageRelations, { open(path, attrs) {
+    if (path.length !== 2 || path[0] !== 'Relationships' || path[1] !== 'Relationship') return;
+    if (attrs.TargetMode?.value && attrs.TargetMode.value !== 'Internal') return;
+    const target = attrs.Target?.value?.replace(/^\/xl\//, '');
+    if (attrs.Type?.value === `${workbookRelations}/worksheet` && /^worksheets\/sheet\d+\.xml$/.test(target)) {
+      const id = attrs.Id?.value;
+      if (!id || sheets.has(id)) throw new Error('Ambiguous worksheet relationship');
+      sheets.set(id, `xl/${target}`);
+    } else if (attrs.Type?.value === `${workbookRelations}/sharedStrings` && target === 'sharedStrings.xml') {
+      if (sharedStrings) throw new Error('Ambiguous shared-string relationship');
+      sharedStrings = `xl/${target}`;
+    }
+  } });
+  return { sheets, sharedStrings };
+}
+
+function isStringText(path, depth) {
+  return path.at(-1) === 't' && (path.length === depth + 2 || (path.length === depth + 3 && path[depth + 1] === 'r'));
+}
+
+function stateCells(xml, SaxesParser) {
+  const cells = new Map();
+  let cell;
+  let previousRow = 0;
+  readXml(xml, SaxesParser, sheetXml, {
+    open(path, attrs) {
+      if (cell && path.length === 5 && path[4] === 'f') throw new Error('Unsupported worksheet formula');
+      if (path.length !== 4 || path[0] !== 'worksheet' || path[1] !== 'sheetData' || path[2] !== 'row' || path[3] !== 'c') return;
+      const address = /^A([1-9]\d*)$/.exec(attrs.r?.value);
+      if (!address) return;
+      const row = Number(address[1]);
+      const type = attrs.t?.value;
+      if (!Number.isSafeInteger(row) || row <= previousRow || !['s', 'str', 'inlineStr'].includes(type))
+        throw new Error('Unsupported state cell layout');
+      previousRow = row;
+      cell = { row, type, value: '' };
+    },
+    text(path, value) {
+      if (!cell) return;
+      if (cell.type === 'inlineStr' ? path[4] === 'is' && isStringText(path, 4) :
+        path.length === 5 && path[4] === 'v') cell.value += value;
+    },
+    close(path) {
+      if (path.length !== 4 || path[3] !== 'c' || !cell) return;
+      if (cell.type === 's') {
+        if (!/^\d+$/.test(cell.value) || !Number.isSafeInteger(Number(cell.value)))
+          throw new Error('Invalid shared-string index');
+        cell.value = Number(cell.value);
+      }
+      cells.set(cell.row, cell.value);
+      cell = undefined;
+    },
+  });
+  return cells;
+}
+
+function selectedStrings(xml, SaxesParser, wanted) {
+  const selected = new Map();
+  let index = -1;
+  let current;
+  readXml(xml, SaxesParser, sheetXml, {
+    open(path) {
+      if (path.length === 2 && path[0] === 'sst' && path[1] === 'si') current = wanted.has(++index) ? '' : undefined;
+    },
+    text(path, value) {
+      if (current !== undefined && isStringText(path, 1)) current += value;
+    },
+    close(path) {
+      if (path.length === 2 && path[1] === 'si' && current !== undefined) {
+        selected.set(index, current);
+        current = undefined;
+      }
+    },
+  });
+  if (selected.size !== wanted.size) throw new Error('Missing shared-string index');
+  return selected;
+}
+
+async function readEmbeddedState(bytes, Zip, SaxesParser) {
+  const zip = await Zip.loadAsync(bytes);
+  const xml = name => zip.file(name)?.async('string');
+  const workbook = await xml('xl/workbook.xml');
+  if (!workbook) return;
+  const tabs = hiddenTabs(workbook, SaxesParser);
+  if (!tabs.length) return;
+  const relationships = await xml('xl/_rels/workbook.xml.rels');
+  if (!relationships) return;
+  const { sheets, sharedStrings } = relatedFiles(relationships, SaxesParser);
+  for (const tab of tabs) {
+    // Other hidden tabs can still hold legacy state, so preserve the workbook reader's selection order.
+    if (!continuationTab.test(tab.name) || !sheets.has(tab.relation)) return;
+    const worksheet = await xml(sheets.get(tab.relation));
+    if (!worksheet) return;
+    const cells = stateCells(worksheet, SaxesParser);
+    const wanted = new Set([...cells.values()].filter(value => typeof value === 'number'));
+    let strings = new Map();
+    if (wanted.size) {
+      const table = sharedStrings && await xml(sharedStrings);
+      if (!table) return;
+      strings = selectedStrings(table, SaxesParser, wanted);
+    }
+    const value = cell => typeof cell === 'number' ? strings.get(cell) : cell;
+    if (value(cells.get(1)) !== continuationStateSignature) continue;
+    cells.delete(1);
+    return [...cells.values()].map(value).join('');
+  }
+}
+
+export async function readContinuation(path, options) {
+  const { readFile } = await import('node:fs/promises');
+  const bytes = await readFile(path);
+  return readContinuationBytes(bytes, { legacyZip: async () => {
+    if (options.Zip) return options.Zip;
+    const { createRequire } = await import('node:module');
+    return createRequire(import.meta.url)('jszip');
+  }, ...options });
+}
+
+export async function readContinuationBytes(bytes, { Workbook, Zip, SaxesParser, loadWorkbook, legacyZip }) {
+  if (Zip && SaxesParser) {
+    let state;
+    try { state = await readEmbeddedState(bytes, Zip, SaxesParser); } catch { /* Unsupported workbook encoding. */ }
+    if (state !== undefined) return parseContinuationState(state);
+  }
+  const loaded = Workbook ?? await loadWorkbook?.();
+  const Constructor = loaded?.Workbook ?? loaded;
+  let book = new Constructor();
   try {
     await book.xlsx.load(bytes);
   } catch (error) {
-    if (!legacyZip) throw error;
-    const Zip = await legacyZip();
-    const zip = await Zip.loadAsync(bytes);
+    const LegacyZip = legacyZip ? await legacyZip() : Zip;
+    if (!LegacyZip) throw error;
+    const zip = await LegacyZip.loadAsync(bytes);
     const workbook = await zip.file('xl/workbook.xml')?.async('string');
     if (!workbook?.includes('<x:workbook') || !workbook.includes('xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"')) throw error;
     // Older app exports used a qualified spreadsheet namespace; ExcelJS needs unprefixed element names.
@@ -381,7 +534,7 @@ export async function readContinuationBytes(bytes, { Workbook, legacyZip }) {
       const xml = await file.async('string');
       zip.file(file.name, xml.replace(/<(\/?)x:(?=[A-Za-z])/g, '<$1').replace('xmlns:x=', 'xmlns='));
     }
-    book = new Workbook();
+    book = new Constructor();
     await book.xlsx.load(await zip.generateAsync({ type: 'uint8array' }));
   }
   return readContinuationWorkbook(book);

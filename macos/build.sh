@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 output="${1:-$root/macos-output}"
-version="${2:-1.1.1}"
+version="${2:-1.1.2}"
 arch="$(uname -m)"
 node="$(command -v node)"
 node_license="$(dirname "$node")/../LICENSE"

@@ -5,7 +5,7 @@ import { collectKeyword } from './collect.mjs';
 import { compareEngagement, continuationMetadata, continuationNoteKey, continuationReports, keywordStart, mergeContinuation } from './continuation.mjs';
 import { chinaDate, validDate } from './dates.mjs';
 import { localizePage, t, visibleError } from './i18n.mjs';
-import { makeReportSheets, parseReportTemplate } from './report-template.mjs';
+import { makeReportFilename, makeReportSheets, parseReportTemplate } from './report-template.mjs';
 import { latestReport, loadReport, saveReport } from './report.mjs';
 import { $, beginKeyword, endKeyword, message, openRun, record, refreshTokens, setStage, showResult } from './task-view.mjs';
 
@@ -287,6 +287,7 @@ $('download').addEventListener('click', download);
 $('job').addEventListener('submit', async event => {
   event.preventDefault();
   if (controller || selectingReport) return;
+  const startedAt = new Date();
   if (!$('screens').validity.valid) {
     updateValidation(true);
     return;
@@ -404,9 +405,7 @@ $('job').addEventListener('submit', async event => {
       includeSingleKeyword: true, continuationState: state, summary, summaryStatus,
     });
     saved = await saveReport(layout, state);
-    const suffix = crypto.randomUUID().slice(0, 6);
-    const day = state.runs.at(-1).day.slice(2).replaceAll('-', '');
-    reportName = `${t('舆情', 'Xiaohongshu')}_${day}_${suffix}.xlsx`;
+    reportName = makeReportFilename(terms, startedAt);
     latest = { state, name: reportName };
     await latestReport(latest).catch(() => {});
     if (previous) {

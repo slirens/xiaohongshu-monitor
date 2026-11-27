@@ -14,13 +14,15 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyVersion("1.1.1.0")]
-[assembly: AssemblyFileVersion("1.1.1.0")]
-[assembly: AssemblyInformationalVersion("1.1.1")]
+[assembly: AssemblyVersion("1.1.2.0")]
+[assembly: AssemblyFileVersion("1.1.2.0")]
+[assembly: AssemblyInformationalVersion("1.1.2")]
 
 internal sealed partial class Desktop : Form
 {
     private const int KeywordHeight = 50;
+    private static readonly Regex TimestampedReportName = new Regex(
+        @"^.+_[0-9]{4}-[0-9]{2}-[0-9]{2}_[1-9][0-9]*词_[0-9]{6}(?:_[0-9]{2,})?\.xlsx$", RegexOptions.IgnoreCase);
     private static readonly Color Ink = Color.FromArgb(30, 26, 27);
     private static readonly Color Muted = Color.FromArgb(111, 108, 109);
     private static readonly Color Accent = Color.FromArgb(220, 20, 55);
@@ -330,6 +332,7 @@ internal sealed partial class Desktop : Form
 #if DISTRIBUTION
         if (!licenseAllowed) return;
 #endif
+        DateTime startedAt = DateTime.UtcNow;
         DateTime from, to;
         if (string.IsNullOrWhiteSpace(keyword.Text) || !start.TryRead(out from) || !end.TryRead(out to) || from > to) {
             MessageBox.Show(this, Ui("请输入关键词，并确认开始日期不晚于结束日期。", "Enter keywords and make sure the start date is on or before the end date."), Text);
@@ -372,7 +375,7 @@ internal sealed partial class Desktop : Form
                 }
                 activeWorker = worker;
                 if (diagnostics != null) diagnostics.DesktopEvent("worker_started");
-                Send(worker, keyword.Text.Trim(), from, to, reportTemplate, order.SelectedIndex == 0 ? "最新" : "综合", key: key);
+                Send(worker, keyword.Text.Trim(), from, to, reportTemplate, order.SelectedIndex == 0 ? "最新" : "综合", startedAt, key: key);
                 if (diagnostics != null) diagnostics.DesktopEvent("worker_request_sent");
                 Task errors = Task.Run(async delegate {
                     string line;
@@ -589,11 +592,13 @@ internal sealed partial class Desktop : Form
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    private void Send(Process worker, string term, DateTime from, DateTime to, string template, string sort, string source = "", string key = "")
+    private void Send(Process worker, string term, DateTime from, DateTime to, string template, string sort,
+        DateTime startedAt, string source = "", string key = "")
     {
         var bounds = browserBounds.IsEmpty ? null : new { left = browserBounds.Left, top = browserBounds.Top,
             width = browserBounds.Width, height = browserBounds.Height };
         var request = new { keyword = term, start = DateText(from), end = DateText(to), source, template, sort = sort,
+            startedAt = startedAt.ToString("o", CultureInfo.InvariantCulture),
             continueReport = continuationReport,
             screens = ParseScreenCount(), browserBounds = bounds, provider = aiProvider.Text,
             model = aiModel.Text.Trim(), endpoint = qwenEndpoint.Enabled ? qwenEndpoint.Text.Trim() : "",
@@ -685,7 +690,8 @@ internal sealed partial class Desktop : Form
         try {
             if (File.Exists(report)) return report;
             if (!Directory.Exists(folder)) return null;
-            return new DirectoryInfo(folder).EnumerateFiles("舆情_*.xlsx")
+            return new DirectoryInfo(folder).EnumerateFiles("*.xlsx")
+                .Where(file => file.Name.StartsWith("舆情_", StringComparison.Ordinal) || TimestampedReportName.IsMatch(file.Name))
                 .OrderByDescending(file => file.LastWriteTimeUtc).Select(file => file.FullName).FirstOrDefault();
         } catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
@@ -936,7 +942,8 @@ internal sealed partial class Desktop : Form
         if (layout != 0) return layout;
         using (var worker = StartWorker()) {
             var day = new DateTime(2026, 11, 21);
-            Send(worker, "之禾 咖啡", day, day, Path.Combine(home, "报告生成模板.md"), "最新", path);
+            var startedAt = new DateTime(2026, 11, 21, 8, 30, 5, DateTimeKind.Utc);
+            Send(worker, "之禾 咖啡", day, day, Path.Combine(home, "报告生成模板.md"), "最新", startedAt, path);
             var errors = worker.StandardError.ReadToEndAsync();
             string result = worker.StandardOutput.ReadToEnd();
             worker.WaitForExit();

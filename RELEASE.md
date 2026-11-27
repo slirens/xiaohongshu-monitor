@@ -2,27 +2,23 @@
 
 ### 中文
 
-- **v1.1.1 界面与导航**采用红、白和墨色，并更新应用图标。界面依次呈现「设置任务」「执行监控」「导出结果」，方便确认任务当前所在阶段。
-- **任务设置与继续监控**把排序、划屏数量、报告模板和 AI 配置集中在「更多设置」。选择「继续监控」后，可使用最近一次报告，或选择其他 Excel 报告。载入的关键词可直接增删，再开始续查。
-- **执行进度与小窗**在运行中显示当前进度，等待登录或停止任务时给出相应提示。桌面版可用紧凑窗口跟进任务。Windows 用户还可将任务收至系统托盘，或从窗口顶栏导出诊断日志。
-- **查看结果与报告**在结果页汇总任务状态，可直接打开或下载 Excel。Windows 和华为浏览器扩展还显示逐关键词状态和笔记数。关键词超过 6 个时，可展开完整列表，按关键词或完成状态筛选。
+- **继续监控读取提速**。Windows、macOS 和 Linux 在选择「继续监控」后，优先从 Excel 直接读取续查数据，缩短恢复关键词和日期的等待。旧格式报告仍可导入。
+- **恢复 Excel 文件名规则**。四个平台按「首个关键词_发起日期_关键词数_发起时间」命名，例如 `宝山_2026-11-24_2词_173050.xlsx`。日期和时分秒取自任务发起时的北京时间。桌面版遇到同一秒重名时追加 `_02`、`_03` 等序号。
 
 ### English
 
-- **v1.1.1 interface and navigation.** The red, white, and ink palette comes with a new app icon. See where a task stands as it moves through setup, monitoring, and results.
-- **Task setup and follow-up monitoring.** More settings groups sort order, scroll limits, report templates, and AI settings. To continue monitoring, load the most recent report or choose another Excel workbook. Add or remove the imported keywords before starting the next run.
-- **Progress and compact window.** The monitoring screen shows live progress and prompts when sign-in or stop confirmation is needed. Desktop users can follow the run in a compact window. On Windows, send the task to the system tray or export diagnostic logs from the toolbar.
-- **Results and reports.** The results screen summarizes the run and gives you direct access to the Excel report. Windows and the HUAWEI Browser extension also show each keyword’s status and note count. For runs with more than six keywords, expand the list to filter by keyword or completion status.
+- **Faster report loading when continuing monitoring.** On Windows, macOS, and Linux, Continue monitoring reads the saved continuation data directly where supported, so keywords and dates load faster. Older report formats can still be imported.
+- **Restored Excel file naming.** All four platforms include the first keyword, run date, keyword count, and run start time, as in `宝山_2026-11-24_2词_173050.xlsx`. The date and time use Beijing time at the start of the run. Desktop apps append `_02`, `_03`, and so on for duplicate names.
 
 ## 下载 · Download
 
 | 类别 · Category | 下载项 · Download |
 | --- | --- |
-| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-windows-x86-setup.exe) |
-| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-macos-x86_64.dmg) |
-| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-linux-amd64.deb) |
-| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/xiaohongshu-monitor-v1.1.1-harmonyos-browser.zip) |
-| 舆情分析模板 · Analysis template | [Markdown](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.1/analysis-template.md) |
+| Windows | [Setup x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x64-setup.exe) · [Setup x86](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-windows-x86-setup.exe) |
+| macOS | [DMG Apple Silicon](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-arm64.dmg) · [DMG Intel x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-macos-x86_64.dmg) |
+| Linux | [DEB x64](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-linux-amd64.deb) |
+| 鸿蒙电脑 · HarmonyOS PC | [华为浏览器扩展 ZIP · HUAWEI Browser extension](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/xiaohongshu-monitor-v1.1.2-harmonyos-browser.zip) |
+| 舆情分析模板 · Analysis template | [Markdown](https://github.com/slirens/xiaohongshu-monitor/releases/download/v1.1.2/analysis-template.md) |
 
 ### 安装说明
 

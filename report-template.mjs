@@ -1,4 +1,19 @@
 const textLimit = 12000;
+const reportClock = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+});
+
+export function makeReportFilename(keywords, startedAt) {
+  const { year, month, day, hour, minute, second } = Object.fromEntries(
+    reportClock.formatToParts(startedAt).map(({ type, value }) => [type, value]),
+  );
+  const safe = (keywords[0] ?? '').replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, '-');
+  const first = Array.from(safe).slice(0, 12).join('').replace(/^[.\s-]+|[.\s-]+$/gu, '') || '关键词';
+  const keyword = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])\./i.test(first) ? first.replace('.', '-') : first;
+  return `${keyword}_${year}-${month}-${day}_${keywords.length}词_${hour}${minute}${second}.xlsx`;
+}
+
 const metrics = { likes: '点赞', saves: '收藏', comments: '评论' };
 const metricColumns = Object.entries(metrics).flatMap(([key, label]) => [
   [key + '_previous', label + '上次', 'previous'],

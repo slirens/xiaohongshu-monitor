@@ -52,7 +52,10 @@ private func latestReport(in home: URL) -> URL? {
     let files = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys),
                                                               options: .skipsHiddenFiles)
     return files?.compactMap { file -> (URL, Date)? in
-        guard file.lastPathComponent.hasPrefix("舆情_"), file.pathExtension == "xlsx",
+        let name = file.deletingPathExtension().lastPathComponent
+        let timestamped = name.range(of: #"^.+_[0-9]{4}-[0-9]{2}-[0-9]{2}_[1-9][0-9]*词_[0-9]{6}(?:_[0-9]{2,})?$"#,
+                                     options: .regularExpression) != nil
+        guard file.pathExtension.lowercased() == "xlsx", name.hasPrefix("舆情_") || timestamped,
               let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true else { return nil }
         return (file, values.contentModificationDate ?? .distantPast)
     }.max { $0.1 < $1.1 }?.0
@@ -1309,6 +1312,7 @@ private struct MonitorView: View {
     }
 
     private func startTask() {
+        let startedAt = Date()
         formTouched = true
         let formatter = dateFormatter
         let first = formatter.string(from: start), last = formatter.string(from: end)
@@ -1323,6 +1327,7 @@ private struct MonitorView: View {
         guard !noKeywords, !importingReport, !monitor.running else { return }
         keywordFocused = false
         monitor.start(["keyword": keyword, "start": first, "end": last, "sort": sort, "screens": count,
+            "startedAt": ISO8601DateFormatter().string(from: startedAt),
             "template": template, "provider": provider, "model": model, "endpoint": endpoint,
             "continueReport": previousReport?.path ?? ""], key: key)
         key = ""
@@ -1433,6 +1438,7 @@ struct XiaohongshuMonitor: App {
                 let data = try JSONSerialization.data(withJSONObject: [
                     "keyword": "宝山 硚口", "start": "2026-11-23", "end": "2026-11-23", "sort": "最新",
                     "screens": 1, "source": CommandLine.arguments[2], "provider": "OpenAI",
+                    "startedAt": "2026-11-22T16:30:00Z",
                 ])
                 try input.fileHandleForWriting.write(contentsOf: data + Data([10]))
                 try input.fileHandleForWriting.close()
